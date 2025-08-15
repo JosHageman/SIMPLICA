@@ -1,0 +1,8 @@
+.Rproj.user
+R/.lintr.R
+.Rhistory
+.RData
+.Ruserdata
+.DS_Store
+SIMPLICA-manual.pdf
+inst/doc/

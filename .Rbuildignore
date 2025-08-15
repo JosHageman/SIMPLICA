@@ -1,0 +1,5 @@
+^SIMPLICA\.Rproj$
+^\.Rproj\.user$
+^R/\.lintr\.R$
+data-raw/
+^SIMPLICA-manual\.pdf$

@@ -1,0 +1,23 @@
+Package: SIMPLICA
+Title: Biclustering via Simplivariate Component Analysis
+Version: 1.0.0
+Authors@R: person("Jos", "Hageman", email = "jos.hageman@wur.nl", role = c("aut", "cre"))
+Description: Identifies constant, additive, multiplicative, and user-defined 
+    simplivariate components in numeric data matrices using a genetic algorithm. 
+    Allows flexible pattern definitions and provides visualization tools for 
+    biclustering applications in life sciences and chemometrics.
+License: GPL-3
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Depends: R (>= 2.10)
+LazyData: true
+LazyDataCompression: xz
+Imports:
+    GA,
+    ggplot2,
+    reshape2,
+    seriation,
+    ggsci
+URL: https://github.com/joshageman/SIMPLICA
+BugReports: https://github.com/joshageman/SIMPLICA/issues
