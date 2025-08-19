@@ -7,11 +7,10 @@
 The method uses a genetic algorithm to simultaneously identify multiple simplivariate components, with flexible pattern definitions and built-in visualization tools.  
 SIMPLICA is designed for applications in **life sciences** and **chemometrics** where meaningful patterns are embedded in complex data.
 
-![Before SIMPLICA][<img src="https://github.com/user-attachments/assets/bc2e6154-2198-4cec-b9b7-f4373140a872" width="250"/>]([image.png](https://github.com/user-attachments/assets/bc2e6154-2198-4cec-b9b7-f4373140a872))
+Before SIMPLICA
+[<img src="https://github.com/user-attachments/assets/bc2e6154-2198-4cec-b9b7-f4373140a872" width="500"/>]([image.png](https://github.com/user-attachments/assets/bc2e6154-2198-4cec-b9b7-f4373140a872))
 
-
-![Before SIMPLICA](https://github.com/user-attachments/assets/bc2e6154-2198-4cec-b9b7-f4373140a872)
-![After SIMPLICA](https://github.com/user-attachments/assets/5f700440-b06a-40ab-9ab9-56ea1bc0df63)
+[<img src="https://github.com/user-attachments/assets/5f700440-b06a-40ab-9ab9-56ea1bc0df63" width="500"/>]([image.png](https://github.com/user-attachments/assets/5f700440-b06a-40ab-9ab9-56ea1bc0df63))
 
 ## Installation
 
