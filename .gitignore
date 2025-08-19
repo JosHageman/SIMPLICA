@@ -6,3 +6,4 @@ R/.lintr.R
 .DS_Store
 SIMPLICA-manual.pdf
 inst/doc/
+data-raw/
