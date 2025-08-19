@@ -11,7 +11,7 @@ Before SIMPLICA:
 
 [<img src="https://github.com/user-attachments/assets/bc2e6154-2198-4cec-b9b7-f4373140a872" width="500"/>]([image.png](https://github.com/user-attachments/assets/bc2e6154-2198-4cec-b9b7-f4373140a872))
 
-After Simplica:
+After SIMPLICA:
 
 [<img src="https://github.com/user-attachments/assets/5f700440-b06a-40ab-9ab9-56ea1bc0df63" width="500"/>]([image.png](https://github.com/user-attachments/assets/5f700440-b06a-40ab-9ab9-56ea1bc0df63))
 
