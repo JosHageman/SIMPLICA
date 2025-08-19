@@ -16,8 +16,6 @@ LazyDataCompression: xz
 Imports:
     GA,
     ggplot2,
-    reshape2,
-    seriation,
     ggsci
 URL: https://github.com/joshageman/SIMPLICA
 BugReports: https://github.com/joshageman/SIMPLICA/issues

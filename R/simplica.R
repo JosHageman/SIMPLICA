@@ -12,7 +12,7 @@
 #' @param pMutation Mutation probability for genetic algorithm (default: 0.025)
 #' @param zeroFraction Fraction of population initialized with zeros (default: 0.9)
 #' @param elitism Number of best individuals preserved between generations (default: 20)
-#' @param numSimClus Number of Simplivariate Components simultaneously optimized (default: 5)
+#' @param numSimComp Number of Simplivariate Components simultaneously optimized (default: 5)
 #' @param verbose Logical, whether to print SIMPLICA progress information (default: FALSE)
 #' @param mySeeds Vector of random seeds for replicate runs (default: 1:5)
 #' @param interval Interval for monitoring GA progress (default: 100)
@@ -61,7 +61,7 @@ simplica <- function(df,
                      pMutation = 0.025,
                      zeroFraction = 0.9,
                      elitism = 20,
-                     numSimClus = 5,
+                     numSimComp = 5,
                      verbose = FALSE,
                      mySeeds = 1:5,
                      interval = 100,
@@ -85,7 +85,7 @@ simplica <- function(df,
   if (verbose) {
     cat("Starting SIMPLICA:\n")
     cat(sprintf("  Extracting %d simplivariate Components from a %d x %d matrix\n",
-                numSimClus, nRows, nCols))
+                numSimComp, nRows, nCols))
   }
 
   rawGAResults <- lapply(seq_along(mySeeds), function(seedIndex) {
@@ -103,7 +103,7 @@ simplica <- function(df,
       patternFunctions = patternFunctions,
       zeroFraction = zeroFraction,
       lower       = rep(0, nRows + nCols),
-      upper       = rep(numSimClus, nRows + nCols),
+      upper       = rep(numSimComp, nRows + nCols),
       population  = gaintegerPopulationFactory(zeroFraction, verbose = verbose),
       selection   = GA::ga_lrSelection,
       crossover   = gaintegerOnePointCrossover,

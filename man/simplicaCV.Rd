@@ -16,7 +16,8 @@ simplicaCV(
   parsimonyMargin = 0.05,
   requireFitters = TRUE,
   updateObject = TRUE,
-  verbose = FALSE
+  verbose = FALSE,
+  ignoreNaComponents = TRUE
 )
 }
 \arguments{
@@ -43,6 +44,8 @@ simplicaCV(
 \item{updateObject}{Logical, whether to update and return the input object (default: TRUE)}
 
 \item{verbose}{Logical, whether to print progress messages (default: FALSE)}
+
+\item{ignoreNaComponents}{Logical, whether to skip components with NA patterns (default: TRUE)}
 }
 \value{
 If updateObject is TRUE, returns the updated simplica object with new fields:

@@ -17,6 +17,7 @@
 #' @param requireFitters Logical, whether fitters are required for all patterns (default: TRUE)
 #' @param updateObject Logical, whether to update and return the input object (default: TRUE)
 #' @param verbose Logical, whether to print progress messages (default: FALSE)
+#' @param ignoreNaComponents Logical, whether to skip components with NA patterns (default: TRUE)
 #'
 #' @return If updateObject is TRUE, returns the updated simplica object with new fields:
 #'   componentPatternsUpdated and componentAudit. If FALSE, returns a list with these components.
@@ -32,17 +33,18 @@
 #'
 #' @export
 simplicaCV <- function(foundObject,
-                      df,
-                      patternFunctions = defaultPatternFunctions(),
-                      patternFitters = defaultPatternFitters(),
-                      preferenceOrder = names(patternFunctions),
-                      nRepeats = 40,
-                      testFraction = 0.2,
-                      minCellsForModels = 25,
-                      parsimonyMargin = 0.05,
-                      requireFitters = TRUE,
-                      updateObject = TRUE,
-                      verbose = FALSE) {
+                       df,
+                       patternFunctions = defaultPatternFunctions(),
+                       patternFitters = defaultPatternFitters(),
+                       preferenceOrder = names(patternFunctions),
+                       nRepeats = 40,
+                       testFraction = 0.2,
+                       minCellsForModels = 25,
+                       parsimonyMargin = 0.05,
+                       requireFitters = TRUE,
+                       updateObject = TRUE,
+                       verbose = FALSE,
+                       ignoreNaComponents = TRUE) {
 
   if (!inherits(foundObject, "simplica")) stop("Input must be a simplica object.")
   if (is.null(foundObject$string)) stop("simplica object lacks 'string'.")
@@ -94,15 +96,66 @@ simplicaCV <- function(foundObject,
 
     if (verbose) message(sprintf("CV component %d (%d x %d)", k, nR, nC))
 
+    originalPatternK <- if (!is.null(originalPatterns) && k >= 1L && k <= length(originalPatterns)) {
+      originalPatterns[k]
+    } else {
+      NA_character_
+    }
+
+    if (ignoreNaComponents && is.na(originalPatternK)) {
+      # keep updated pattern as NA
+      if (!is.null(newPatterns) && k >= 1L && k <= length(newPatterns)) newPatterns[k] <- NA_character_
+
+      decisions[[i]] <- list(
+        componentId = k,
+        originalPattern = originalPatternK,
+        selectedPattern = NA_character_,
+        reason = "skipped: original pattern NA (ignored in CV)",
+        nRows = nR,
+        nCols = nC,
+        nCells = nR * nC,
+        nRepeats = nRepeats,
+        testFraction = testFraction,
+        parsimonyMargin = parsimonyMargin,
+        # CV summary placeholders
+        cvMean_constant = NA_real_,
+        cvMean_additive = NA_real_,
+        cvMean_multiplicative = NA_real_,
+        cvSd_constant = NA_real_,
+        cvSd_additive = NA_real_,
+        cvSd_multiplicative = NA_real_,
+        winFrac_constant = NA_real_,
+        winFrac_additive = NA_real_,
+        winFrac_multiplicative = NA_real_
+      )
+
+      if (verbose) {
+        message(sprintf("CV component %d skipped (NA pattern).", k))
+      }
+      next
+    }
+
     if (nR * nC == 0L) {
       decisions[[i]] <- list(
         componentId = k,
-        originalPattern = if (!is.null(originalPatterns) && k <= length(originalPatterns)) originalPatterns[k] else NA_character_,
+        originalPattern = originalPatternK,
         selectedPattern = NA_character_,
         reason = "empty component",
         nRows = nR,
         nCols = nC,
-        nCells = nR * nC
+        nCells = nR * nC,
+        nRepeats = nRepeats,
+        testFraction = testFraction,
+        parsimonyMargin = parsimonyMargin,
+        cvMean_constant = NA_real_,
+        cvMean_additive = NA_real_,
+        cvMean_multiplicative = NA_real_,
+        cvSd_constant = NA_real_,
+        cvSd_additive = NA_real_,
+        cvSd_multiplicative = NA_real_,
+        winFrac_constant = NA_real_,
+        winFrac_additive = NA_real_,
+        winFrac_multiplicative = NA_real_
       )
       next
     }
@@ -122,7 +175,6 @@ simplicaCV <- function(foundObject,
       verbose = verbose
     )
 
-    originalPatternK <- if (!is.null(originalPatterns) && k >= 1L && k <= length(originalPatterns)) originalPatterns[k] else NA_character_
     selected <- audit$decision
     if (!is.null(newPatterns) && k >= 1L && k <= length(newPatterns)) newPatterns[k] <- selected
 
@@ -150,26 +202,22 @@ simplicaCV <- function(foundObject,
 
   rowList <- lapply(seq_along(decisions), function(i) {
     d <- decisions[[i]]
-    if (is.null(d)) d <- list()  # safety
+    if (is.null(d)) d <- list()
 
-    # length-0 -> NA
     if (length(d)) {
       zeroLen <- names(d)[vapply(d, function(z) length(z) == 0L, logical(1))]
       for (nm in zeroLen) d[[nm]] <- NA
     }
 
-    # add missing fields as NA
     missing <- setdiff(allNames, names(d))
     for (nm in missing) d[[nm]] <- NA
 
-    # assert scalars
     tooLong <- names(d)[vapply(d, function(z) length(z) > 1L, logical(1))]
     if (length(tooLong)) {
       stop(sprintf("Non-scalar fields in decisions[[%d]]: %s",
                    i, paste(tooLong, collapse = ", ")))
     }
 
-    # fix order for consistent columns
     d <- d[allNames]
     as.data.frame(d, stringsAsFactors = FALSE, check.names = FALSE)
   })

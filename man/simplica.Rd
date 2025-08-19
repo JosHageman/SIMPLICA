@@ -12,7 +12,7 @@ simplica(
   pMutation = 0.025,
   zeroFraction = 0.9,
   elitism = 20,
-  numSimClus = 5,
+  numSimComp = 5,
   verbose = FALSE,
   mySeeds = 1:5,
   interval = 100,
@@ -37,7 +37,7 @@ simplica(
 
 \item{elitism}{Number of best individuals preserved between generations (default: 20)}
 
-\item{numSimClus}{Number of Simplivariate Components simultaneously optimized (default: 5)}
+\item{numSimComp}{Number of Simplivariate Components simultaneously optimized (default: 5)}
 
 \item{verbose}{Logical, whether to print SIMPLICA progress information (default: FALSE)}
 

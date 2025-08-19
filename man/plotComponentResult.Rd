@@ -19,7 +19,7 @@ plotComponentResult(
 \arguments{
 \item{df}{Original data matrix}
 
-\item{string}{Best GA string (vector of length ncol(df) + nrow(df))}
+\item{string}{Best GA string (vector of length nrow(df) + ncol(df); rows first, then cols)}
 
 \item{componentPatterns}{Vector of component types (from fitness(..., returnPatterns = TRUE))}
 
@@ -27,9 +27,9 @@ plotComponentResult(
 
 \item{scoreCutoff}{Minimum score a component must have to be shown (default: 0 = show all)}
 
-\item{showLabels}{Show axis labels (default: TRUE)}
+\item{showLabels}{Show axis tick labels (default: TRUE). If TRUE, all labels are shown even if they overlap.}
 
-\item{title}{Title for the plot}
+\item{title}{Title for the plot (default: "Detected Components")}
 
 \item{rearrange}{Logical: reorder rows and columns to group components (default: FALSE)}
 
