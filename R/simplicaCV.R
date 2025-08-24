@@ -19,8 +19,29 @@
 #' @param verbose Logical, whether to print progress messages (default: FALSE)
 #' @param ignoreNaComponents Logical, whether to skip components with NA patterns (default: TRUE)
 #'
-#' @return If updateObject is TRUE, returns the updated simplica object with new fields:
-#'   componentPatternsUpdated and componentAudit. If FALSE, returns a list with these components.
+#' @return If \code{updateObject = TRUE}, returns the input \code{simplica} object 
+#' with two new fields:
+#' \describe{
+#'   \item{\code{componentPatternsUpdated}}{Character vector with the selected 
+#'   pattern per component after cross-validation. If a component is skipped or empty, 
+#'   the entry is \code{NA}.}
+#'   \item{\code{componentAudit}}{Data frame containing detailed cross-validation 
+#'   results for each component, with the following columns: 
+#'   \describe{
+#'     \item{\code{componentId}}{Numeric ID of the component.}
+#'     \item{\code{originalPattern}}{Pattern label originally assigned.}
+#'     \item{\code{selectedPattern}}{Pattern chosen after CV-based evaluation.}
+#'     \item{\code{reason}}{Explanation of why a pattern was selected or skipped.}
+#'     \item{\code{nRows}, \code{nCols}, \code{nCells}}{Dimensions of the component.}
+#'     \item{\code{nRepeats}, \code{testFraction}, \code{parsimonyMargin}}{CV settings used.}
+#'     \item{\code{cvMean_<pattern>}}{Mean RMSE over CV folds for each tested pattern.}
+#'     \item{\code{cvSd_<pattern>}}{Standard deviation of RMSE across CV folds.}
+#'     \item{\code{winFrac_<pattern>}}{Fraction of CV repeats where the pattern was the best performer.}
+#'   }}
+#' }
+#'
+#' If \code{updateObject = FALSE}, returns a list with the same two elements
+#' (\code{componentPatternsUpdated}, \code{componentAudit}).
 #'
 #' @details The function performs the following steps:
 #' \itemize{
@@ -32,6 +53,7 @@
 #' }
 #'
 #' @export
+
 simplicaCV <- function(foundObject,
                        df,
                        patternFunctions = defaultPatternFunctions(),

@@ -4,8 +4,8 @@ Version: 1.0.0
 Authors@R: person("Jos", "Hageman", email = "jos.hageman@wur.nl", role = c("aut", "cre"))
 Description: Identifies constant, additive, multiplicative, and user-defined 
     simplivariate components in numeric data matrices using a genetic algorithm. 
-    Allows flexible pattern definitions and provides visualization tools for 
-    biclustering applications in life sciences and chemometrics.
+    Supports flexible pattern definitions and provides visualization for 
+    general biclustering applications across diverse domains.
 License: GPL-3
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

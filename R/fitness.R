@@ -1,6 +1,6 @@
 #' Fitness function with automatic pattern selection per Simplivariate Component
 #'
-#' @param string Vector with length ncol(df) + nrow(df): component labels for columns and rows.
+#' @param string Vector with length nrow(df) + ncol(df): component labels for rows and columns (in this order).
 #' @param df Numeric matrix: full data.
 #' @param dfMean Scalar: global mean of df.
 #' @param penalty Named vector with penalty weights per pattern.

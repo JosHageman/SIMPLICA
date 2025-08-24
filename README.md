@@ -4,8 +4,8 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 **Simplivariate Component Analysis** for detecting constant, additive, multiplicative, and user-defined biclusters in numeric data matrices.  
-The method uses a genetic algorithm to simultaneously identify multiple simplivariate components, with flexible pattern definitions and built-in visualization tools.  
-SIMPLICA is designed for applications in **life sciences** and **chemometrics** where meaningful patterns are embedded in complex data.
+The method uses a genetic algorithm to simultaneously identify multiple simplivariate components, with flexible pattern definitions and built-in visualization.  
+SIMPLICA is a versatile biclustering framework for numeric data matrices. Whether your data come from biology, chemistry, or any other field, SIMPLICA helps uncover hidden structures using genetic algorithms and flexible pattern definitions.
 
 Before SIMPLICA:
 

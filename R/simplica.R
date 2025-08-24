@@ -2,16 +2,15 @@
 #'
 #' This function implements the SIMPLICA algorithm for identifying Simplivariate Components
 #' in data matrices using genetic algorithms. It searches for submatrices that follow
-#' specific patterns (constant, additive, multiplicative or user-defined ones) and extracts
-#' them iteratively.
+#' specific patterns (constant, additive, multiplicative or user-defined ones).
 #'
 #' @param df A numeric data matrix to analyze
 #' @param maxIter Maximum number of generations for the genetic algorithm (default: 2000)
-#' @param popSize Population size for the genetic algorithm (default: 200)
-#' @param pCrossover Crossover probability for genetic algorithm (default: 0.5)
-#' @param pMutation Mutation probability for genetic algorithm (default: 0.025)
+#' @param popSize Population size for the genetic algorithm (default: 300)
+#' @param pCrossover Crossover probability for genetic algorithm (default: 0.6)
+#' @param pMutation Mutation probability for genetic algorithm (default: 0.03)
 #' @param zeroFraction Fraction of population initialized with zeros (default: 0.9)
-#' @param elitism Number of best individuals preserved between generations (default: 20)
+#' @param elitism Number of best individuals preserved between generations (default: 100)
 #' @param numSimComp Number of Simplivariate Components simultaneously optimized (default: 5)
 #' @param verbose Logical, whether to print SIMPLICA progress information (default: FALSE)
 #' @param mySeeds Vector of random seeds for replicate runs (default: 1:5)
@@ -56,11 +55,11 @@
 #' @export
 simplica <- function(df,
                      maxIter = 2000,
-                     popSize = 200,
-                     pCrossover = 0.5,
-                     pMutation = 0.025,
+                     popSize = 300,
+                     pCrossover = 0.6,
+                     pMutation = 0.03,
                      zeroFraction = 0.9,
-                     elitism = 20,
+                     elitism = 100,
                      numSimComp = 5,
                      verbose = FALSE,
                      mySeeds = 1:5,

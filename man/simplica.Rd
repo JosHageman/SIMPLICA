@@ -7,11 +7,11 @@
 simplica(
   df,
   maxIter = 2000,
-  popSize = 200,
-  pCrossover = 0.5,
-  pMutation = 0.025,
+  popSize = 300,
+  pCrossover = 0.6,
+  pMutation = 0.03,
   zeroFraction = 0.9,
-  elitism = 20,
+  elitism = 100,
   numSimComp = 5,
   verbose = FALSE,
   mySeeds = 1:5,
@@ -27,15 +27,15 @@ simplica(
 
 \item{maxIter}{Maximum number of generations for the genetic algorithm (default: 2000)}
 
-\item{popSize}{Population size for the genetic algorithm (default: 200)}
+\item{popSize}{Population size for the genetic algorithm (default: 300)}
 
-\item{pCrossover}{Crossover probability for genetic algorithm (default: 0.5)}
+\item{pCrossover}{Crossover probability for genetic algorithm (default: 0.6)}
 
-\item{pMutation}{Mutation probability for genetic algorithm (default: 0.025)}
+\item{pMutation}{Mutation probability for genetic algorithm (default: 0.03)}
 
 \item{zeroFraction}{Fraction of population initialized with zeros (default: 0.9)}
 
-\item{elitism}{Number of best individuals preserved between generations (default: 20)}
+\item{elitism}{Number of best individuals preserved between generations (default: 100)}
 
 \item{numSimComp}{Number of Simplivariate Components simultaneously optimized (default: 5)}
 
@@ -75,8 +75,7 @@ A list with:
 \description{
 This function implements the SIMPLICA algorithm for identifying Simplivariate Components
 in data matrices using genetic algorithms. It searches for submatrices that follow
-specific patterns (constant, additive, multiplicative or user-defined ones) and extracts
-them iteratively.
+specific patterns (constant, additive, multiplicative or user-defined ones).
 }
 \examples{
 \dontrun{

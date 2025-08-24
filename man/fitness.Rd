@@ -15,7 +15,7 @@ fitness(
 )
 }
 \arguments{
-\item{string}{Vector with length ncol(df) + nrow(df): component labels for columns and rows.}
+\item{string}{Vector with length nrow(df) + ncol(df): component labels for rows and columns (in this order).}
 
 \item{df}{Numeric matrix: full data.}
 
