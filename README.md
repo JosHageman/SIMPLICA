@@ -50,12 +50,13 @@ fit <- simplica(
 summary(fit)
 
 # Plot detected clusters
-plotClusterResult(
-  df = simplicaToy$data,
-  string = fit$best$string,
-  clusterPatterns = fit$best$clusterPatterns,
-  clusterScores = fit$best$clusterScores
-)
+#' plotComponentResult(df = simplicaToy$data,
+#'                     string            = fit$best$string,
+#'                     componentPatterns = fit$best$componentPatternsUpdated,
+#'                     componentScores   = fit$best$componentScores,
+#'                     showAxisLabels    = FALSE,
+#'                     title             = "SIMPLICA on simplicaToy",
+#'                     scoreCutoff       = 25000
 ```
 
 ## Features
