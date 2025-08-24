@@ -10,7 +10,8 @@ plotComponentResult(
   componentPatterns,
   componentScores,
   scoreCutoff = 0,
-  showLabels = TRUE,
+  showAxisLabels = TRUE,
+  showComponentLabels = TRUE,
   title = "Detected Components",
   rearrange = FALSE,
   grayscale = TRUE
@@ -27,7 +28,9 @@ plotComponentResult(
 
 \item{scoreCutoff}{Minimum score a component must have to be shown (default: 0 = show all)}
 
-\item{showLabels}{Show axis tick labels (default: TRUE). If TRUE, all labels are shown even if they overlap.}
+\item{showAxisLabels}{Logical: show axis tick labels (default: TRUE)}
+
+\item{showComponentLabels}{Logical: show component labels inside clusters (default: TRUE)}
 
 \item{title}{Title for the plot (default: "Detected Components")}
 
@@ -39,5 +42,6 @@ plotComponentResult(
 ggplot object
 }
 \description{
-Visualizes GA-detected simplivariate components on the original matrix as outlined cells, colored by pattern type.
+Visualizes GA-detected simplivariate components on the original matrix as outlined cells,
+colored by pattern type.
 }

@@ -1,13 +1,15 @@
 #' Plot non-contiguous simplivariate components by pattern type, with optional reordering
 #'
-#' Visualizes GA-detected simplivariate components on the original matrix as outlined cells, colored by pattern type.
+#' Visualizes GA-detected simplivariate components on the original matrix as outlined cells,
+#' colored by pattern type.
 #'
 #' @param df Original data matrix
 #' @param string Best GA string (vector of length nrow(df) + ncol(df); rows first, then cols)
 #' @param componentPatterns Vector of component types (from fitness(..., returnPatterns = TRUE))
 #' @param componentScores Vector of fitness scores per component
 #' @param scoreCutoff Minimum score a component must have to be shown (default: 0 = show all)
-#' @param showLabels Show axis tick labels (default: TRUE). If TRUE, all labels are shown even if they overlap.
+#' @param showAxisLabels Logical: show axis tick labels (default: TRUE)
+#' @param showComponentLabels Logical: show component labels inside clusters (default: TRUE)
 #' @param title Title for the plot (default: "Detected Components")
 #' @param rearrange Logical: reorder rows and columns to group components (default: FALSE)
 #' @param grayscale Logical: use grayscale for heatmap background (default: TRUE)
@@ -16,7 +18,8 @@
 #' @export
 plotComponentResult <- function(df, string, componentPatterns, componentScores,
                                 scoreCutoff = 0,
-                                showLabels = TRUE,
+                                showAxisLabels = TRUE,
+                                showComponentLabels = TRUE,
                                 title = "Detected Components",
                                 rearrange = FALSE,
                                 grayscale = TRUE) {
@@ -145,6 +148,7 @@ plotComponentResult <- function(df, string, componentPatterns, componentScores,
   xScale <- ggplot2::scale_x_discrete(expand = c(0, 0), drop = FALSE, breaks = colNames, labels = colNames)
   yScale <- ggplot2::scale_y_discrete(expand = c(0, 0), drop = FALSE, breaks = rowNames, labels = rowNames)
 
+  # basisplot
   p <- ggplot2::ggplot(dataLong, ggplot2::aes(x = Col, y = Row, fill = Value)) +
     ggplot2::geom_tile() +
     fillScale +
@@ -154,22 +158,24 @@ plotComponentResult <- function(df, string, componentPatterns, componentScores,
     ggplot2::theme_minimal() +
     ggplot2::theme(
       plot.title = ggplot2::element_text(hjust = 0.5),
-      panel.grid = ggplot2::element_blank(),
-      axis.text.x = ggplot2::element_text(angle = 90, hjust = 1, vjust = 0.5),
-      ## force y tick labels to show even if a global theme blanked them:
-      axis.text.y = ggplot2::element_text(),
-      axis.ticks.y = ggplot2::element_line()
+      panel.grid = ggplot2::element_blank()
     )
 
-  if (showLabels) {
-    p <- p + ggplot2::guides(
-      x = ggplot2::guide_axis(check.overlap = FALSE),
-      y = ggplot2::guide_axis(check.overlap = FALSE)
+  # axis labels
+  if (showAxisLabels) {
+    p <- p + ggplot2::theme(
+      axis.text.x = ggplot2::element_text(angle = 90, hjust = 1, vjust = 0.5),
+      axis.text.y = ggplot2::element_text(),
+      axis.ticks  = ggplot2::element_line()
     )
   } else {
-    p <- p + ggplot2::theme(axis.text = ggplot2::element_blank(), axis.ticks = ggplot2::element_blank())
+    p <- p + ggplot2::theme(
+      axis.text  = ggplot2::element_blank(),
+      axis.ticks = ggplot2::element_blank()
+    )
   }
 
+  # outline van componenten
   if (nrow(componentTiles) > 0) {
     p <- p +
       ggplot2::geom_tile(
@@ -183,7 +189,8 @@ plotComponentResult <- function(df, string, componentPatterns, componentScores,
       ggplot2::guides(color = ggplot2::guide_legend(override.aes = list(fill = NA)))
   }
 
-  if (nrow(componentLabels) > 0) {
+  # labels op de componenten
+  if (showComponentLabels && nrow(componentLabels) > 0) {
     p <- p +
       ggplot2::geom_text(
         data = componentLabels,

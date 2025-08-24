@@ -1,8 +1,9 @@
 #' SIMPLICA: Simultaneous Identification of Simplivariate Components
 #'
-#' This function implements the SIMPLICA algorithm for identifying Simplivariate Components
-#' in data matrices using genetic algorithms. It searches for submatrices that follow
-#' specific patterns (constant, additive, multiplicative or user-defined ones).
+#' Implements the SIMPLICA algorithm to identify simplivariate components 
+#' in data matrices using genetic algorithms. These components are related to 
+#' clusters or biclusters, but defined here in terms of specific structural 
+#' patterns (constant, additive, multiplicative, or user-defined).
 #'
 #' @param df A numeric data matrix to analyze
 #' @param maxIter Maximum number of generations for the genetic algorithm (default: 2000)
@@ -46,9 +47,9 @@
 #'                     string            = fit$best$string,
 #'                     componentPatterns = fit$best$componentPatternsUpdated,
 #'                     componentScores   = fit$best$componentScores,
-#'                     showLabels        = FALSE,
+#'                     showAxisLabels    = FALSE,
 #'                     title             = "SIMPLICA on simplicaToy",
-#'                     scoreCutoff       = 10000)
+#'                     scoreCutoff       = 25000)
 #' }
 #'
 #' @importFrom stats setNames
