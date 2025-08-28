@@ -69,19 +69,25 @@ Defaults if omitted:
 A list with:
 \itemize{
 \item best: simplica object (includes original GA result; if doSimplicaCV=TRUE, also componentPatternsUpdated and componentAudit)
-\item raw: list of GA objects over seeds
+\item raw: list of \code{"ga"} objects (one per seed, from the GA package)
 }
 }
 \description{
-Implements the SIMPLICA algorithm to identify simplivariate components
-in data matrices using genetic algorithms. These components are related to
+Implements the SIMPLICA algorithm to identify Simplivariate Components
+in data matrices using a genetic algorithm. These components are related to
 clusters or biclusters, but defined here in terms of specific structural
 patterns (constant, additive, multiplicative, or user-defined).
 }
 \examples{
-\dontrun{
+\donttest{
 data("simplicaToy")
-fit <- simplica(df = simplicaToy$data, verbose = TRUE)
+# Minimal run just to demonstrate function usage, run with default GA parameters
+fit <- simplica(df = simplicaToy$data, 
+                maxIter = 200,
+                popSize = 50,
+                mySeeds = 1,
+                elitism = 1,
+                verbose = TRUE)
 plotComponentResult(df = simplicaToy$data,
                     string            = fit$best$string,
                     componentPatterns = fit$best$componentPatternsUpdated,
@@ -91,4 +97,9 @@ plotComponentResult(df = simplicaToy$data,
                     scoreCutoff       = 25000)
 }
 
+}
+\references{
+Hageman, J. A., Wehrens, R., & Buydens, L. M. C. (2008). "Simplivariate Models: Ideas and First Examples." PLoS ONE, 3(9), e3259. \url{https://doi.org/10.1371/journal.pone.0003259}
+
+Madeira, S. C., & Oliveira, A. L. (2004). "Biclustering Algorithms for Biological Data Analysis: A Survey." IEEE/ACM Transactions on Computational Biology and Bioinformatics, 1(1), 24–45. \url{https://doi.org/10.1109/TCBB.2004.2}
 }

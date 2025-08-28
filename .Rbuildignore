@@ -3,3 +3,4 @@
 ^R/\.lintr\.R$
 data-raw/
 ^SIMPLICA-manual\.pdf$
+^README\.md$

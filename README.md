@@ -51,12 +51,12 @@ summary(fit)
 
 # Plot detected clusters
 plotComponentResult(df = simplicaToy$data,
-                     string            = fit$best$string,
-                     componentPatterns = fit$best$componentPatternsUpdated,
-                     componentScores   = fit$best$componentScores,
-                     showAxisLabels    = FALSE,
-                     title             = "SIMPLICA on simplicaToy",
-                     scoreCutoff       = 25000
+                    string            = fit$best$string,
+                    componentPatterns = fit$best$componentPatternsUpdated,
+                    componentScores   = fit$best$componentScores,
+                    showAxisLabels    = FALSE,
+                    title             = "SIMPLICA on simplicaToy",
+                    scoreCutoff       = 25000
 ```
 
 ## Features

@@ -4,7 +4,11 @@
 #' @param showDetails Logical. If TRUE, also print row/column indices per component.
 #' @param maxLinesDetails Integer. Max number of indices to print per dimension
 #'   (rows/cols) before truncation (default 200).
-#' @param ... Unused.
+#' @param ... Further arguments passed to or from other methods (not used here).
+#' 
+#' @return The input object \code{x}, invisibly. Called for its side effect of 
+#'   printing a formatted component summary to the console.
+#' 
 #' @export
 #' @method print summaryComponents
 print.summaryComponents <- function(x, showDetails = FALSE, maxLinesDetails = 200L, ...) {

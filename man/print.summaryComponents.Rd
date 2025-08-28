@@ -14,7 +14,11 @@
 \item{maxLinesDetails}{Integer. Max number of indices to print per dimension
 (rows/cols) before truncation (default 200).}
 
-\item{...}{Unused.}
+\item{...}{Further arguments passed to or from other methods (not used here).}
+}
+\value{
+The input object \code{x}, invisibly. Called for its side effect of
+printing a formatted component summary to the console.
 }
 \description{
 Print method for summaryComponents
