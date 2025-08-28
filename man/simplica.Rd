@@ -99,7 +99,7 @@ plotComponentResult(df = simplicaToy$data,
 
 }
 \references{
-Hageman, J. A., Wehrens, R., & Buydens, L. M. C. (2008). "Simplivariate Models: Ideas and First Examples." PLoS ONE, 3(9), e3259. \url{https://doi.org/10.1371/journal.pone.0003259}
+Hageman, J. A., Wehrens, R., & Buydens, L. M. C. (2008). "Simplivariate Models: Ideas and First Examples." PLoS ONE, 3(9), e3259. \doi{10.1371/journal.pone.0003259}
 
-Madeira, S. C., & Oliveira, A. L. (2004). "Biclustering Algorithms for Biological Data Analysis: A Survey." IEEE/ACM Transactions on Computational Biology and Bioinformatics, 1(1), 24–45. \url{https://doi.org/10.1109/TCBB.2004.2}
+Madeira, S. C., & Oliveira, A. L. (2004). "Biclustering Algorithms for Biological Data Analysis: A Survey." IEEE/ACM Transactions on Computational Biology and Bioinformatics, 1(1), 24–45. \doi{10.1109/TCBB.2004.2}
 }
