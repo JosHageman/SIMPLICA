@@ -1,7 +1,9 @@
-# SIMPLICA <img src="man/figures/logo.png" align="right" height="120" />
+# SIMPLICA
 
-[![R-CMD-check](https://github.com/joshageman/SIMPLICA/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/joshageman/SIMPLICA/actions)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+![R-CMD-check](https://github.com/joshageman/SIMPLICA/actions/workflows/R-CMD-check.yaml/badge.svg)
+![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)
+![CRAN status](https://www.r-pkg.org/badges/version/SIMPLICA)
+![Downloads](https://cranlogs.r-pkg.org/badges/grand-total/SIMPLICA)
 
 **Simplivariate Component Analysis** for detecting constant, additive, multiplicative, and user-defined biclusters in numeric data matrices.  
 The method uses a genetic algorithm to simultaneously identify multiple simplivariate components, with flexible pattern definitions and built-in visualization.  
