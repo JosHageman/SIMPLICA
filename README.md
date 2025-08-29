@@ -5,9 +5,7 @@
 ![CRAN status](https://www.r-pkg.org/badges/version/SIMPLICA)
 ![Downloads](https://cranlogs.r-pkg.org/badges/grand-total/SIMPLICA)
 
-**Simplivariate Component Analysis** for detecting constant, additive, multiplicative, and user-defined biclusters in numeric data matrices.  
-The method uses a genetic algorithm to simultaneously identify multiple simplivariate components, with flexible pattern definitions and built-in visualization.  
-SIMPLICA is a versatile biclustering framework for numeric data matrices. Whether your data come from biology, chemistry, or any other field, SIMPLICA helps uncover hidden structures using genetic algorithms and flexible pattern definitions.
+**Simplivariate Component Analysis** for detecting constant, additive, multiplicative, and user-defined biclusters in numeric data matrices. The method uses a genetic algorithm to simultaneously identify multiple simplivariate components, with flexible pattern definitions and built-in visualization. SIMPLICA is a versatile biclustering framework for numeric data matrices. Whether your data come from biology, chemistry, or any other field, SIMPLICA helps uncover hidden structures using genetic algorithms and flexible pattern definitions.
 
 Before SIMPLICA:
 
