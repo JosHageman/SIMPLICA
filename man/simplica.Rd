@@ -2,104 +2,98 @@
 % Please edit documentation in R/simplica.R
 \name{simplica}
 \alias{simplica}
-\title{SIMPLICA: Simultaneous Identification of Simplivariate Components}
+\title{Fit SIMPLICA components}
 \usage{
 simplica(
   df,
-  maxIter = 2000,
-  popSize = 300,
-  pCrossover = 0.6,
-  pMutation = 0.03,
-  zeroFraction = 0.9,
-  elitism = 100,
-  numSimComp = 5,
+  numSimComp,
+  maxIter = 5000,
+  run = 500,
+  popSize = 200,
+  pCrossover = 0.9,
+  pMutation = 0.2,
+  maxMutatedGenes = 5,
+  maxCrossoverPoints = 20,
+  elitism = 80,
   verbose = FALSE,
   mySeeds = 1:5,
   interval = 100,
-  penalty = c(constant = 0, additive = 1, multiplicative = 0),
-  patternFunctions = defaultPatternFunctions(),
+  patterns = defaultPatterns(),
+  customPatterns = list(),
+  customPatternComplexity = list(),
+  minimumRows = 3,
+  minimumColumns = 3,
   doSimplicaCV = TRUE,
-  cvControl = NULL
+  cvControl = NULL,
+  backgroundSignal = NULL,
+  backgroundScale = NULL,
+  selectionPressure = 1.01,
+  zeroFraction = 0.75
 )
 }
 \arguments{
-\item{df}{A numeric data matrix to analyze}
+\item{df}{Numeric matrix or data frame. Missing values are allowed.}
 
-\item{maxIter}{Maximum number of generations for the genetic algorithm (default: 2000)}
+\item{numSimComp}{Maximum number of components (1 to 31).}
 
-\item{popSize}{Population size for the genetic algorithm (default: 300)}
+\item{maxIter, run, popSize, pCrossover, elitism, selectionPressure, verbose, interval}{GA controls. \code{maxIter} caps generations and \code{run} stops a start after that many generations without improvement.
+\code{popSize} is the population size, \code{pCrossover} is the crossover probability, and \code{elitism} caps the number of distinct elite candidates carried forward.
+\code{selectionPressure} controls rank-based selection (1 gives equal weights).
+With \code{verbose = TRUE}, progress is printed every \code{interval} generations.}
 
-\item{pCrossover}{Crossover probability for genetic algorithm (default: 0.6)}
+\item{pMutation}{Probability of mutating each string.}
 
-\item{pMutation}{Mutation probability for genetic algorithm (default: 0.03)}
+\item{maxMutatedGenes}{Maximum distinct bit flips; sample uniformly from 1 to this maximum (default 5).}
 
-\item{zeroFraction}{Fraction of population initialized with zeros (default: 0.9)}
+\item{maxCrossoverPoints}{Maximum cuts, sampled uniformly per crossover (default 20); capped at string length minus one.}
 
-\item{elitism}{Number of best individuals preserved between generations (default: 100)}
+\item{mySeeds}{Seeds used anew for each component (default 1:5).}
 
-\item{numSimComp}{Number of Simplivariate Components simultaneously optimized (default: 5)}
+\item{patterns}{Built-in patterns to compare.}
 
-\item{verbose}{Logical, whether to print SIMPLICA progress information (default: FALSE)}
+\item{customPatterns}{Named custom approximation functions.}
 
-\item{mySeeds}{Vector of random seeds for replicate runs (default: 1:5)}
+\item{customPatternComplexity}{Named complexities for custom patterns.}
 
-\item{interval}{Interval for monitoring GA progress (default: 100)}
+\item{minimumRows, minimumColumns}{Minimum selected dimensions (default 3).}
 
-\item{penalty}{Named vector of penalty values for each pattern type (default: c(constant = 0, additive = 1, multiplicative = 0))}
+\item{doSimplicaCV}{Whether to report cross-validated pattern suggestions after the search.}
 
-\item{patternFunctions}{List of pattern functions used for fitness evaluation (default: defaultPatternFunctions())}
+\item{cvControl}{Optional tuning arguments for simplicaCV. SIMPLICA
+defaults to ten splits and requires seven shared valid splits. When
+\code{nRepeats} is supplied, all splits are required unless \code{minValidRepeats} is supplied too.}
 
-\item{doSimplicaCV}{Logical, run cross-validated relabeling with simplicaCV() after GA (default: TRUE)}
+\item{backgroundSignal, backgroundScale}{Background location and positive scale. Supply both to override estimation.}
 
-\item{cvControl}{Optional list to tune simplicaCV; fields passed to simplicaCV via do.call.
-Defaults if omitted:
-\itemize{
-\item patternFitters = defaultPatternFitters()
-\item preferenceOrder = names(patternFunctions)
-\item nRepeats = 40
-\item testFraction = 0.2
-\item minCellsForModels = 25
-\item parsimonyMargin = 0.05
-\item requireFitters = TRUE
-\item updateObject = TRUE
-\item verbose = verbose
-}}
+\item{zeroFraction}{Probability of initializing a gene to zero (default 0.75).}
 }
 \value{
-A list with:
-\itemize{
-\item best: simplica object (includes original GA result; if doSimplicaCV=TRUE, also componentPatternsUpdated and componentAudit)
-\item raw: list of \code{"ga"} objects (one per seed, from the GA package)
-}
+A list with \code{best} (a fitted SIMPLICA object) and \code{raw} (GA results
+grouped by search step and seed). Use \code{summaryComponents(best)} to view the
+retained components. The fit contains \code{componentFits}, the final \code{residuals},
+\code{bestSeeds}, per-step \code{seedFitness} and a \code{stopReason}. Unused slots have zero
+scores. The total fitness is the sum of the retained component scores.
 }
 \description{
-Implements the SIMPLICA algorithm to identify Simplivariate Components
-in data matrices using a genetic algorithm. These components are related to
-clusters or biclusters, but defined here in terms of specific structural
-patterns (constant, additive, multiplicative, or user-defined).
+Finds one component at a time. For each component, the genetic algorithm
+searches for rows, columns and a pattern, using each seed in \code{mySeeds}.
+SIMPLICA keeps the highest-scoring candidate. It refits the pattern and
+subtracts the fitted values minus the background location within that block
+before searching again. The background stays fixed throughout the fit.
+The search stops at \code{numSimComp} or when the best score is zero or negative.
+Optional cross-validation suggests patterns for interpretation after the search.
 }
-\examples{
-\donttest{
-data("simplicaToy")
-# Minimal run just to demonstrate function usage, run with default GA parameters
-fit <- simplica(df = simplicaToy$data, 
-                maxIter = 200,
-                popSize = 50,
-                mySeeds = 1,
-                elitism = 1,
-                verbose = TRUE)
-plotComponentResult(df = simplicaToy$data,
-                    string            = fit$best$string,
-                    componentPatterns = fit$best$componentPatternsUpdated,
-                    componentScores   = fit$best$componentScores,
-                    showAxisLabels    = FALSE,
-                    title             = "SIMPLICA on simplicaToy",
-                    scoreCutoff       = 25000)
+\section{Typical analysis}{
+
+The following code reproduces the SIMPLICA analysis presented in
+the package vignette. The analysis takes several minutes to complete.
+
+\preformatted{
+data("simplicaVignette")
+x <- simplicaVignette$data
+analysis <- do.call(simplica, c(list(df = x), simplicaVignette$info$gaSettings))
+fit <- analysis$best
+summaryComponents(fit)
+}
 }
 
-}
-\references{
-Hageman, J. A., Wehrens, R., & Buydens, L. M. C. (2008). "Simplivariate Models: Ideas and First Examples." PLoS ONE, 3(9), e3259. \doi{10.1371/journal.pone.0003259}
-
-Madeira, S. C., & Oliveira, A. L. (2004). "Biclustering Algorithms for Biological Data Analysis: A Survey." IEEE/ACM Transactions on Computational Biology and Bioinformatics, 1(1), 24–45. \doi{10.1109/TCBB.2004.2}
-}

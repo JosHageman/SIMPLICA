@@ -8,52 +8,64 @@ componentCVPatterns(
   df,
   rows,
   cols,
-  patternFunctions,
-  patternFitters,
-  preferenceOrder = names(patternFunctions),
-  nRepeats = 40,
+  patterns = defaultPatterns(),
+  customPatterns = list(),
+  customPatternComplexity = list(),
+  preferenceOrder = c(patterns, names(customPatterns)),
+  nRepeats = 5,
   testFraction = 0.2,
-  minCellsForModels = 25,
-  parsimonyMargin = 0.05,
-  requireFitters = TRUE,
-  verbose = FALSE
+  parsimonyMargin = 0.02,
+  cvSeed = 1,
+  verbose = FALSE,
+  splitScores = NULL
 )
 }
 \arguments{
-\item{df}{A matrix or data frame containing the data}
+\item{df}{A numeric matrix or data frame. Missing values are allowed.}
 
-\item{rows}{Row indices to subset from df}
+\item{rows, cols}{Fixed row and column indices of the component.}
 
-\item{cols}{Column indices to subset from df}
+\item{patterns}{Built-in pattern names.}
 
-\item{patternFunctions}{A named list of pattern functions to evaluate}
+\item{customPatterns}{Named custom approximation functions.}
 
-\item{patternFitters}{A named list of fitter functions corresponding to each pattern}
+\item{customPatternComplexity}{Named complexities for custom patterns.}
 
-\item{preferenceOrder}{Character vector specifying the preference order of patterns (default: names of patternFunctions)}
+\item{preferenceOrder}{Tie-break order between equal-complexity patterns.}
 
-\item{nRepeats}{Integer, number of cross-validation repeats (default: 40)}
+\item{nRepeats}{Number of repeated held-out splits.}
 
-\item{testFraction}{Numeric, fraction of data to use for testing in each CV fold (default: 0.2)}
+\item{testFraction}{Requested fraction of usable cells to hold out.}
 
-\item{minCellsForModels}{Integer, minimum number of cells required for reliable CV (default: 25)}
+\item{parsimonyMargin}{Relative RMSE margin within which the simplest model
+is selected.}
 
-\item{parsimonyMargin}{Numeric, margin for parsimony selection as fraction (default: 0.05)}
+\item{cvSeed}{Seed used to generate splits without changing the caller's RNG.}
 
-\item{requireFitters}{Logical, whether to require fitters for all patterns (default: TRUE)}
+\item{verbose}{Print progress messages.}
 
-\item{verbose}{Logical, whether to print progress messages (default: FALSE)}
+\item{splitScores}{Optional deterministic split priorities with dimensions
+\code{nrow(df)} by \code{ncol(df)} by \code{nRepeats}.}
 }
 \value{
-A list containing:
-\item{decision}{Character, the selected best pattern name}
-\item{reason}{Character, explanation of the selection reasoning}
-\item{cv}{Data frame with CV summary statistics for each model}
-\item{repeats}{Data frame with detailed results from each CV repeat}
-\item{meta}{List with metadata about the CV procedure}
+A list containing the selected pattern (\code{decision}), an explanation
+(\code{reason}), pooled RMSE by pattern (\code{cv}), RMSE by split (\code{repeats}), and
+the settings used (\code{meta}). See \code{simplicaCV()} for evaluating fitted
+SIMPLICA components on their search matrices.
 }
 \description{
-Performs pure cross-validation over specified patterns with mandatory fitters.
-This function evaluates different pattern fitting models using cross-validation
-to determine the best model for a given data subset.
+Compares patterns on a block with fixed rows and columns. Each pattern is
+tested on the same held-out cells. Patterns must produce valid predictions on
+every split. The simplest pattern within \code{parsimonyMargin} of the lowest
+pooled RMSE is selected. Custom functions receive a matrix whose held-out
+cells are \code{NA} and must return a numeric matrix of the same size.
+}
+\examples{
+set.seed(1)
+x <- outer(1:8, 1:8, "+") + matrix(rnorm(64, sd = 0.1), 8, 8)
+cv <- componentCVPatterns(x, rows = 1:8, cols = 1:8,
+                          patterns = c("constant", "additive"))
+cv$decision
+cv$cv
+
 }

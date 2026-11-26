@@ -6,4 +6,8 @@ R/.lintr.R
 .DS_Store
 SIMPLICA-manual.pdf
 inst/doc/
-data-raw/
+data-raw/*
+!data-raw/make_simplica_vignette_data.R
+!data-raw/simulate_simplica_vignette_data.R
+!data-raw/check_simplica_vignette_data.R
+!data-raw/vignetteData.csv

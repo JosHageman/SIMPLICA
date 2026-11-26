@@ -1,24 +1,38 @@
 Package: SIMPLICA
-Title: Biclustering via Simplivariate Component Analysis
-Version: 1.0.0
+Title: Simplivariate Component Analysis
+Version: 2.0.0
 Authors@R: person("Jos", "Hageman", email = "jos.hageman@wur.nl", role = c("aut", "cre"))
-Description: Identifies constant, additive, multiplicative, and user-defined 
-    simplivariate components in numeric data matrices using a genetic algorithm. 
-    Supports flexible pattern definitions and provides visualization for 
-    general biclustering applications across diverse domains. The method builds 
-    on simplivariate models as introduced in Hageman et al. (2008) 
-    <doi:10.1371/journal.pone.0003259> and is related to biclustering 
-    frameworks as reviewed by Madeira and Oliveira (2004) <doi:10.1109/TCBB.2004.2>.
+Description: Identifies coherent biclusters in numeric data matrices using
+    simplivariate component analysis. Components are extracted sequentially
+    using a binary genetic algorithm to select subsets of rows and columns,
+    followed by residual deflation. Six built-in component patterns are
+    supported: constant, row, column, additive, multiplicative, and
+    additive-multiplicative. Components may overlap, and missing values
+    are handled without imputation. Cross-validation can be used for
+    pattern selection after component extraction. User-defined component
+    patterns and corresponding model complexity specifications can also
+    be supplied. The method builds on simplivariate models as introduced
+    in Hageman et al. (2008) <doi:10.1371/journal.pone.0003259> and is
+    related to biclustering frameworks as reviewed by Madeira and Oliveira
+    (2004) <doi:10.1109/TCBB.2004.2>.
 License: GPL-3
 Encoding: UTF-8
-Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
-Depends: R (>= 2.10)
-LazyData: true
-LazyDataCompression: xz
+Depends:
+    R (>= 4.1)
 Imports:
+    compiler,
     GA,
     ggplot2,
-    ggsci
+    ggsci,
+    stats,
+    utils
+Suggests:
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
+LazyData: true
+LazyDataCompression: xz
 URL: https://github.com/joshageman/SIMPLICA
 BugReports: https://github.com/joshageman/SIMPLICA/issues
+Config/roxygen2/markdown: TRUE
+Config/roxygen2/version: 8.1.1

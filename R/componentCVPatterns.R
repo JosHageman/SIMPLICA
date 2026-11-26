@@ -1,172 +1,212 @@
 #' Cross-Validation of Simplivariate Component Patterns
 #'
-#' Performs pure cross-validation over specified patterns with mandatory fitters.
-#' This function evaluates different pattern fitting models using cross-validation
-#' to determine the best model for a given data subset.
+#' Compares patterns on a block with fixed rows and columns. Each pattern is
+#' tested on the same held-out cells. Patterns must produce valid predictions on
+#' every split. The simplest pattern within `parsimonyMargin` of the lowest
+#' pooled RMSE is selected. Custom functions receive a matrix whose held-out
+#' cells are `NA` and must return a numeric matrix of the same size.
 #'
-#' @param df A matrix or data frame containing the data
-#' @param rows Row indices to subset from df
-#' @param cols Column indices to subset from df
-#' @param patternFunctions A named list of pattern functions to evaluate
-#' @param patternFitters A named list of fitter functions corresponding to each pattern
-#' @param preferenceOrder Character vector specifying the preference order of patterns (default: names of patternFunctions)
-#' @param nRepeats Integer, number of cross-validation repeats (default: 40)
-#' @param testFraction Numeric, fraction of data to use for testing in each CV fold (default: 0.2)
-#' @param minCellsForModels Integer, minimum number of cells required for reliable CV (default: 25)
-#' @param parsimonyMargin Numeric, margin for parsimony selection as fraction (default: 0.05)
-#' @param requireFitters Logical, whether to require fitters for all patterns (default: TRUE)
-#' @param verbose Logical, whether to print progress messages (default: FALSE)
+#' @param df A numeric matrix or data frame. Missing values are allowed.
+#' @param rows,cols Fixed row and column indices of the component.
+#' @param patterns Built-in pattern names.
+#' @param customPatterns Named custom approximation functions.
+#' @param customPatternComplexity Named complexities for custom patterns.
+#' @param preferenceOrder Tie-break order between equal-complexity patterns.
+#' @param nRepeats Number of repeated held-out splits.
+#' @param testFraction Requested fraction of usable cells to hold out.
+#' @param parsimonyMargin Relative RMSE margin within which the simplest model
+#'   is selected.
+#' @param cvSeed Seed used to generate splits without changing the caller's RNG.
+#' @param verbose Print progress messages.
+#' @param splitScores Optional deterministic split priorities with dimensions
+#'   `nrow(df)` by `ncol(df)` by `nRepeats`.
 #'
-#' @return A list containing:
-#' \item{decision}{Character, the selected best pattern name}
-#' \item{reason}{Character, explanation of the selection reasoning}
-#' \item{cv}{Data frame with CV summary statistics for each model}
-#' \item{repeats}{Data frame with detailed results from each CV repeat}
-#' \item{meta}{List with metadata about the CV procedure}
+#' @return A list containing the selected pattern (`decision`), an explanation
+#'   (`reason`), pooled RMSE by pattern (`cv`), RMSE by split (`repeats`), and
+#'   the settings used (`meta`). See `simplicaCV()` for evaluating fitted
+#'   SIMPLICA components on their search matrices.
+#' @examples
+#' set.seed(1)
+#' x <- outer(1:8, 1:8, "+") + matrix(rnorm(64, sd = 0.1), 8, 8)
+#' cv <- componentCVPatterns(x, rows = 1:8, cols = 1:8,
+#'                           patterns = c("constant", "additive"))
+#' cv$decision
+#' cv$cv
 #'
 #' @export
 componentCVPatterns <- function(df, rows, cols,
-                                patternFunctions,
-                                patternFitters,
-                                preferenceOrder = names(patternFunctions),
-                                nRepeats = 40,
+                                patterns = defaultPatterns(),
+                                customPatterns = list(),
+                                customPatternComplexity = list(),
+                                preferenceOrder = c(patterns, names(customPatterns)),
+                                nRepeats = 5,
                                 testFraction = 0.2,
-                                minCellsForModels = 25,
-                                parsimonyMargin = 0.05,
-                                requireFitters = TRUE,
-                                verbose = FALSE) {
-  
-  # Validate input data
-  stopifnot(is.matrix(df) || is.data.frame(df))
-  sub <- as.matrix(df)[rows, cols, drop = FALSE]
-  nR <- length(rows)
-  nC <- length(cols)
-  nCells <- nR * nC
+                                parsimonyMargin = 0.02,
+                                cvSeed = 1,
+                                verbose = FALSE,
+                                splitScores = NULL) {
+  mat <- .simplicaValidateDataMatrix(df)
+  rows <- .simplicaValidateIndices(rows, "rows", nrow(mat))
+  cols <- .simplicaValidateIndices(cols, "cols", ncol(mat))
+  nRepeats <- .simplicaValidateCVControl(
+    nRepeats, testFraction, parsimonyMargin, cvSeed)
+  .simplicaValidatePatterns(
+    patterns, customPatterns, customPatternComplexity
+  )
+  patternNames <- c(patterns, names(customPatterns))
+  preferenceOrder <- unique(c(intersect(preferenceOrder, patternNames), patternNames))
 
-  # Check that pattern functions are provided
-  if (is.null(patternFunctions) || length(patternFunctions) == 0L) {
-    stop("patternFunctions must be a non-empty named list.")
-  }
-  if (is.null(patternFitters)) {
-    stop("patternFitters must be provided and contain fitters for all patterns.")
-  }
+  .componentCVPatternsCore(
+    mat, rows, cols, patterns, customPatterns, customPatternComplexity,
+    preferenceOrder, nRepeats, testFraction, parsimonyMargin, cvSeed,
+    verbose, splitScores)
+}
 
-  # Required: every pattern must have a fitter
-  missingFitters <- setdiff(names(patternFunctions), names(patternFitters))
-  if (requireFitters && length(missingFitters) > 0L) {
-    stop(sprintf("No fitter defined for pattern(s): %s",
-                 paste(missingFitters, collapse = ", ")))
+# Post-GA only: fixed random splits, no split search or identifiability SVDs.
+# Comparisons use the same held-out cells for both patterns within each split.
+#' Compare patterns on held-out cells of a fixed component
+#'
+#' Takes boundary-validated data, membership indices and CV settings, with an
+#' optional precomputed split priorities. Fits all eligible
+#' models on shared splits. With compareToBest, ranks by pooled RMSE on common
+#' valid splits and selects the simplest model within parsimonyMargin of the
+#' best. Otherwise a supplied referencePattern restricts alternatives to
+#' strictly simpler models. Returns decision, reason, per-model
+#' CV results, repeat RMSEs and metadata. Runs after the GA and preserves caller RNG.
+#' @noRd
+.componentCVPatternsCore <- function(mat, rows, cols, patterns, customPatterns,
+                                     customPatternComplexity, preferenceOrder,
+                                     nRepeats, testFraction, parsimonyMargin,
+                                     cvSeed, verbose,
+                                     splitScores = NULL, referencePattern = NULL, minValidRepeats = nRepeats,
+                                     compareToBest = FALSE) {
+  sub <- mat[rows, cols, drop = FALSE]
+  observed <- which(!is.na(sub))
+  nObserved <- length(observed)
+  if (!nrow(sub) || !ncol(sub)) return(list(decision = NA_character_,
+    reason = "empty component", cv = data.frame(), repeats = matrix(numeric(), 0, 0),
+    meta = list(nObserved = 0L, nRepeats = nRepeats)))
+  patternNames <- c(patterns, names(customPatterns))
+  definitions <- c(defaultPatternComplexity()[patterns], customPatternComplexity)
+  # Evaluate and validate each model's parameter count for this component size.
+  complexities <- vapply(patternNames, function(pattern) {
+    definition <- definitions[[pattern]]
+    value <- if (is.function(definition)) {
+      definition(nrow(sub), ncol(sub), nObserved)
+    } else definition
+    .simplicaValidatePatternComplexity(value, pattern)
+  }, integer(1))
+  # In a fitted object, consider only the GA pattern and strictly simpler ones.
+  if (!compareToBest && !is.null(referencePattern)) {
+    keep <- patternNames == referencePattern |
+      complexities < complexities[referencePattern]
+    patternNames <- patternNames[keep]
+    complexities <- complexities[keep]
   }
-
-  if (is.null(preferenceOrder)) {
-    preferenceOrder <- names(patternFunctions)
+  nTest <- max(1L, as.integer(round(nObserved * testFraction)))
+  testable <- nObserved - nTest >= complexities & nObserved > nTest
+  cv <- data.frame(model = patternNames, complexity = unname(complexities),
+    pooledRmse = NA_real_, nValidRepeats = 0L)
+  errors <- matrix(NA_real_, nRepeats, length(patternNames),
+    dimnames = list(NULL, patternNames))
+  meta <- list(nObserved = nObserved, nTest = nTest, nRepeats = nRepeats,
+    testFraction = testFraction, parsimonyMargin = parsimonyMargin,
+    referencePattern = referencePattern, minValidRepeats = minValidRepeats)
+  if (!compareToBest && !is.null(referencePattern) && length(patternNames) == 1L) {
+    return(list(decision = referencePattern, reason = "no simpler pattern",
+      cv = cv, repeats = matrix(numeric(), 0L, 0L), meta = meta))
+  }
+  if (!is.null(splitScores)) {
+    if (!is.numeric(splitScores) ||
+        !identical(dim(splitScores), c(nrow(mat), ncol(mat), nRepeats)) ||
+        any(!is.finite(splitScores))) stop("splitScores must be a finite nrow(df) x ncol(df) x nRepeats array.")
   } else {
-    preferenceOrder <- intersect(preferenceOrder, names(patternFunctions))
+    hadSeed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+    if (hadSeed) oldSeed <- get(".Random.seed", envir = .GlobalEnv)
+    on.exit({
+      if (hadSeed) assign(".Random.seed", oldSeed, envir = .GlobalEnv) else
+        if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE))
+          rm(".Random.seed", envir = .GlobalEnv)
+    }, add = TRUE)
+    set.seed(cvSeed)
   }
-  if (length(preferenceOrder) == 0L) {
-    stop("preferenceOrder has no overlap with patternFunctions names.")
-  }
-
-  # Early return if insufficient data for cross-validation
-  if (nCells < minCellsForModels) {
-    mu <- mean(sub)
-    return(list(
-      decision = "constant",
-      reason = sprintf("too few cells (%d < %d) for reliable CV", nCells, minCellsForModels),
-      cv = data.frame(model = names(patternFunctions),
-                      meanRmse = c(sqrt(mean((sub - mu)^2)), rep(NA_real_, length(patternFunctions) - 1L)),
-                      sdRmse = NA_real_,
-                      winFrac = c(1, rep(NA_real_, length(patternFunctions) - 1L))),
-      repeats = data.frame()
-    ))
-  }
-
-  patNames <- names(patternFunctions)
-  nPat <- length(patNames)
-  rmseMat <- matrix(NA_real_, nrow = nRepeats, ncol = nPat)
-  colnames(rmseMat) <- patNames
-
-  # Root mean square error calculation
-  rmse <- function(obs, pred) sqrt(mean((obs - pred)^2))
-
-  # Function to fit and predict for one pattern
-  fitPredictOne <- function(patName, m, testMask) {
-    trainMask <- !testMask
-    fitter <- patternFitters[[patName]]
-    if (is.null(fitter)) {
-      stop(sprintf("Missing fitter for pattern '%s'.", patName))
+  if (any(testable)) for (repeatId in seq_len(nRepeats)) {
+    test <- if (is.null(splitScores)) {
+      observed[sample.int(nObserved, nTest)]
+    } else {
+      priorities <- splitScores[rows, cols, repeatId, drop = FALSE]
+      observed[order(priorities[observed])[seq_len(nTest)]]
     }
-    fitted <- fitter(m, trainMask)
-    return(rmse(m[testMask], fitted[testMask]))
-  }
-
-  for (rep in seq_len(nRepeats)) {
-    # Create test mask ensuring each row and column has at least one training observation
-    testMask <- {
-      total <- nR * nC
-      nTest <- max(1L, round(total * testFraction))
-      ok <- FALSE
-      tries <- 0L
-      while (!ok && tries < 200L) {
-        tries <- tries + 1L
-        mask <- array(FALSE, dim = c(nR, nC))
-        mask[sample.int(total, nTest, replace = FALSE)] <- TRUE
-        ok <- all(rowSums(!mask) >= 1L) && all(colSums(!mask) >= 1L)
+    train <- sub
+    train[test] <- NA_real_
+    for (j in which(testable)) {
+      pattern <- patternNames[j]
+      prediction <- tryCatch({
+        if (pattern %in% patterns) {
+          fit <- .defaultPatternFitConverged(train, pattern)
+          if (fit$converged) fit$fitted else NULL
+        } else customPatterns[[pattern]](train)
+      }, error = function(e) NULL)
+      if (is.numeric(prediction) && is.matrix(prediction) &&
+          identical(dim(prediction), dim(sub)) &&
+          all(is.finite(prediction[test]))) {
+        errors[repeatId, j] <- sum((sub[test] - prediction[test])^2)
       }
-      if (!ok) {
-        mask <- array(FALSE, dim = c(nR, nC))
-        mask[sample.int(total, 1L)] <- TRUE
-      }
-      mask
-    }
-
-    # Fit each pattern and calculate RMSE
-    for (j in seq_len(nPat)) {
-      p <- patNames[j]
-      rmseMat[rep, j] <- fitPredictOne(p, sub, testMask)
-    }
-    # Progress reporting
-    if (verbose && rep %% max(1L, floor(nRepeats / 10)) == 0L) {
-      message(sprintf("CV %d/%d done.", rep, nRepeats))
     }
   }
-
-  meanVec <- colMeans(rmseMat)
-  sdVec <- apply(rmseMat, 2L, stats::sd)
-  wins <- apply(rmseMat, 1L, function(x) which.min(x))
-  winFrac <- sapply(seq_len(nPat), function(j) mean(wins == j))
-
-  # Create cross-validation summary
-  cvSummary <- data.frame(
-    model = colnames(rmseMat),
-    meanRmse = as.numeric(meanVec),
-    sdRmse = as.numeric(sdVec),
-    winFrac = as.numeric(winFrac),
-    stringsAsFactors = FALSE
-  )
-
-  # Select best model based on parsimony principle
-  best <- min(meanVec)
-  within <- meanVec <= (1 + parsimonyMargin) * best
-  orderIdx <- match(preferenceOrder, colnames(rmseMat))
-  candidates <- preferenceOrder[within[orderIdx]]
-  decision <- if (length(candidates) >= 1L) candidates[1L] else names(meanVec)[which.min(meanVec)]
-
-  reason <- sprintf(
-    "pure CV: best mean RMSE = %.4f; selected simplest within %.0f%% margin",
-    best, 100 * parsimonyMargin
-  )
-
-  return(list(
-    decision = decision,
-    reason = reason,
-    cv = cvSummary,
-    repeats = data.frame(repeatId = seq_len(nRepeats), rmseMat, check.names = FALSE),
-    meta = list(
-      nRows = nR, nCols = nC, nCells = nCells,
-      nRepeats = nRepeats, testFraction = testFraction,
-      parsimonyMargin = parsimonyMargin,
-      preferenceOrder = preferenceOrder
-    )
-  ))
+  cv$nValidRepeats <- colSums(is.finite(errors))
+  if (compareToBest) {
+    # Prefer candidates with more valid fits when some cannot share enough splits.
+    commonSplits <- rep(TRUE, nRepeats)
+    candidates <- which(cv$nValidRepeats >= minValidRepeats)
+    candidates <- candidates[order(cv$nValidRepeats[candidates], decreasing = TRUE)]
+    compared <- integer()
+    for (j in candidates) {
+      shared <- commonSplits & is.finite(errors[, j])
+      if (sum(shared) >= minValidRepeats) {
+        compared <- c(compared, j)
+        commonSplits <- shared
+      }
+    }
+    cv$nSharedRepeats <- 0L
+    cv$referenceRmse <- NA_real_
+    cv$nSharedRepeats[compared] <- sum(commonSplits)
+    cv$pooledRmse[compared] <- sqrt(colMeans(errors[commonSplits, compared, drop = FALSE]) / nTest)
+    best <- which.min(cv$pooledRmse)
+    comparable <- length(best) > 0
+    eligible <- integer()
+    meta["referencePattern"] <- list(NULL)
+    if (comparable) {
+      meta$referencePattern <- patternNames[best]
+      cv$referenceRmse[compared] <- cv$pooledRmse[best]
+      eligible <- which(cv$pooledRmse <= (1 + parsimonyMargin) * cv$pooledRmse[best])
+    }
+  } else if (is.null(referencePattern)) {
+    valid <- cv$nValidRepeats == nRepeats
+    cv$pooledRmse[valid] <- sqrt(colMeans(errors[, valid, drop = FALSE]) / nTest)
+    reference <- if (any(valid)) min(cv$pooledRmse[valid]) else NA_real_
+    eligible <- which(valid & cv$pooledRmse <= (1 + parsimonyMargin) * reference)
+    comparable <- is.finite(reference)
+  } else {
+    referenceErrors <- errors[, match(referencePattern, patternNames)]
+    shared <- is.finite(errors) & is.finite(referenceErrors)
+    cv$nSharedRepeats <- colSums(shared)
+    cv$referenceRmse <- NA_real_
+    for (j in which(cv$nSharedRepeats >= minValidRepeats)) {
+      cv$pooledRmse[j] <- sqrt(mean(errors[shared[, j], j]) / nTest)
+      cv$referenceRmse[j] <- sqrt(mean(referenceErrors[shared[, j]]) / nTest)
+    }
+    eligible <- which(cv$pooledRmse <= (1 + parsimonyMargin) * cv$referenceRmse)
+    comparable <- any(cv$nSharedRepeats[patternNames != referencePattern] >= minValidRepeats)
+  }
+  decision <- NA_character_
+  reason <- "no valid comparison; retain the GA pattern"
+  if (comparable) {
+    ranked <- order(complexities[eligible], match(patternNames[eligible], preferenceOrder))
+    decision <- patternNames[eligible[ranked[1L]]]
+    reason <- "simplest pattern within the RMSE margin"
+  }
+  if (verbose) message("CV: ", if (is.na(decision)) reason else decision)
+  list(decision = decision, reason = reason, cv = cv,
+    repeats = sqrt(errors / nTest), meta = meta)
 }

@@ -2,89 +2,78 @@
 % Please edit documentation in R/simplicaCV.R
 \name{simplicaCV}
 \alias{simplicaCV}
-\title{Test Simplivariate Components with Cross-Validation Pattern Selection}
+\title{Cross-validate fitted component patterns}
 \usage{
 simplicaCV(
   foundObject,
   df,
-  patternFunctions = defaultPatternFunctions(),
-  patternFitters = defaultPatternFitters(),
-  preferenceOrder = names(patternFunctions),
-  nRepeats = 40,
+  patterns = defaultPatterns(),
+  customPatterns = list(),
+  customPatternComplexity = list(),
+  preferenceOrder = c(patterns, names(customPatterns)),
+  nRepeats = 5,
   testFraction = 0.2,
-  minCellsForModels = 25,
-  parsimonyMargin = 0.05,
-  requireFitters = TRUE,
+  parsimonyMargin = 0.02,
+  cvSeed = 1,
   updateObject = TRUE,
   verbose = FALSE,
-  ignoreNaComponents = TRUE
+  minValidRepeats = nRepeats,
+  compareToBest = !is.null(foundObject[["components"]])
 )
 }
 \arguments{
-\item{foundObject}{A simplica object containing Simplivariate Components}
+\item{foundObject}{A \code{simplica} object with fixed component membership.}
 
-\item{df}{Data frame or matrix with the original data}
+\item{df}{Original numeric data matrix or data frame.}
 
-\item{patternFunctions}{List of pattern functions to evaluate (default: defaultPatternFunctions())}
+\item{patterns}{Built-in patterns to compare.}
 
-\item{patternFitters}{List of pattern fitting functions (default: defaultPatternFitters())}
+\item{customPatterns}{Named custom approximation functions.}
 
-\item{preferenceOrder}{Character vector specifying preference order for pattern selection (default: names(patternFunctions))}
+\item{customPatternComplexity}{Named complexities for custom patterns.}
 
-\item{nRepeats}{Integer, number of cross-validation repeats (default: 40)}
+\item{preferenceOrder}{Tie-break order between equal-complexity patterns.}
 
-\item{testFraction}{Numeric, fraction of data to use for testing (default: 0.2)}
+\item{nRepeats}{Number of repeated held-out splits.}
 
-\item{minCellsForModels}{Integer, minimum number of cells required for model fitting (default: 25)}
+\item{testFraction}{Requested fraction of usable cells to hold out.}
 
-\item{parsimonyMargin}{Numeric, margin for parsimony-based model selection (default: 0.05)}
+\item{parsimonyMargin}{Relative RMSE margin for selecting a simpler model.}
 
-\item{requireFitters}{Logical, whether fitters are required for all patterns (default: TRUE)}
+\item{cvSeed}{Seed for reproducible splits; the caller's RNG is preserved.}
 
-\item{updateObject}{Logical, whether to update and return the input object (default: TRUE)}
+\item{updateObject}{Return the input object with CV-specific fields added.}
 
-\item{verbose}{Logical, whether to print progress messages (default: FALSE)}
+\item{verbose}{Print component and repeat progress.}
 
-\item{ignoreNaComponents}{Logical, whether to skip components with NA patterns (default: TRUE)}
+\item{minValidRepeats}{Minimum number of shared valid splits for comparison with the reference pattern.}
+
+\item{compareToBest}{Use the lowest CV RMSE among patterns with enough valid
+splits as the reference. Defaults to true for a fit returned by simplica().}
 }
 \value{
-If \code{updateObject = TRUE}, returns the input \code{simplica} object
-with two new fields:
-\describe{
-\item{\code{componentPatternsUpdated}}{Character vector with the selected
-pattern per component after cross-validation. If a component is skipped or empty,
-the entry is \code{NA}.}
-\item{\code{componentAudit}}{Data frame containing detailed cross-validation
-results for each component, with the following columns:
-\describe{
-\item{\code{componentId}}{Numeric ID of the component.}
-\item{\code{originalPattern}}{Pattern label originally assigned.}
-\item{\code{selectedPattern}}{Pattern chosen after CV-based evaluation.}
-\item{\code{reason}}{Explanation of why a pattern was selected or skipped.}
-\item{\code{nRows}, \code{nCols}, \code{nCells}}{Dimensions of the component.}
-\item{\code{nRepeats}, \code{testFraction}, \code{parsimonyMargin}}{CV settings used.}
-\item{\code{cvMean_<pattern>}}{Mean RMSE over CV folds for each tested pattern.}
-\item{\code{cvSd_<pattern>}}{Standard deviation of RMSE across CV folds.}
-\item{\code{winFrac_<pattern>}}{Fraction of CV repeats where the pattern was the best performer.}
-}}
-}
-
-If \code{updateObject = FALSE}, returns a list with the same two elements
-(\code{componentPatternsUpdated}, \code{componentAudit}).
+With \code{updateObject = TRUE}, the unchanged input object plus
+\code{componentPatternsUpdated} and \code{componentAudit}. Standalone component objects
+also receive refreshed \code{componentFits}.
+Otherwise a list containing only the two CV-specific results.
+\code{componentPatternsUpdated} retains the original GA-selected pattern for a
+component when CV cannot make a decision.
 }
 \description{
-This function performs cross-validation-based pattern testing for Simplivariate Components
-in a SIMPLICA object. It evaluates different pattern functions using cross-validation
-and selects the best performing pattern for each component. Fitters are required
-for all patterns with no fallback options.
+Uses held-out cells to select the simplest pattern within \code{parsimonyMargin}
+of the reference pattern's pooled RMSE. With \code{compareToBest = TRUE}, all
+testable patterns can qualify. Patterns are included in order of valid split
+count while at least \code{minValidRepeats} common splits remain. The lowest pooled
+RMSE on those common splits sets the reference. Otherwise the GA pattern
+sets the reference and each simpler alternative is compared on its shared splits.
+Row and column membership, GA fitness, component
+scores, and the original GA-selected patterns are never changed. When the
+object is updated, fits returned by simplica() retain the fits used for deflation.
+Standalone component objects refresh parameter fits for the CV-selected pattern.
 }
 \details{
-The function performs the following steps:
-\itemize{
-\item Validates the input simplica object and data dimensions
-\item Checks that all pattern functions have corresponding fitters
-\item For each simplivariate component, performs cross-validation pattern evaluation
-\item Selects the best performing pattern based on RMSE and parsimony
-\item Updates component patterns and provides detailed test information
-}
+Fits returned by simplica() are evaluated component by component on their
+original residual trajectory. Standalone component objects use the supplied data.
+Multi-component CV requires the original residual trajectory. Components
+whose GA score is not positive are not cross-validated.
 }

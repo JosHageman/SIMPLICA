@@ -2,25 +2,53 @@
 % Please edit documentation in R/summaryComponents.R
 \name{summaryComponents}
 \alias{summaryComponents}
-\title{Summarize GA-found Simplivariate Components}
+\title{Summarize fitted components}
 \usage{
 summaryComponents(results, scoreCutoff = 0)
 }
 \arguments{
 \item{results}{A list or 'simplica' object with fields:
 \code{nRows}, \code{nCols}, \code{string}, \code{componentScores},
-and either \code{componentPatternsUpdated} or \code{componentPatterns}.}
+and either \code{componentPatternsUpdated} or \code{componentPatterns}.
+The membership string uses bit masks and can assign a row or column to
+multiple components.}
 
-\item{scoreCutoff}{Numeric. Minimum score to include a component (default 0).}
+\item{scoreCutoff}{Numeric. Minimum score to include a component. At the
+default of 0, only strictly positive components are included; use a lower
+value to inspect inactive or negative component slots.}
 }
 \value{
 A data.frame with columns:
-\code{componentId}, \code{pattern}, \code{score}, \code{rows}, \code{cols}, \code{size};
+\code{componentId}, \code{pattern}, \code{gaPattern}, \code{cvPattern},
+\code{cvChanged}, \code{score}, \code{rows}, \code{cols}, and \code{size}.
+The \code{pattern} column is the fitted pattern used for deflation in a
+fit returned by simplica(), or the effective pattern after CV for a standalone component.
+\code{gaPattern} is the original GA selection and \code{cvPattern} is the CV decision.
+When CV cannot decide, the fitted pattern is still reported while
+\code{cvPattern} and \code{cvChanged} are \code{NA}. They are also \code{NA}
+when CV was not run.
 class is \code{c("summaryComponents","data.frame")}. The attribute
 \code{"indices"} stores a list with per-component \code{rowIdx} and \code{colIdx}.
+The logical attribute \code{"cv_run"} records whether CV was run.
+The \code{size} column is the full row-by-column rectangle and does not
+subtract original missing values or cells shared by multiple components.
 }
 \description{
-Compute a tidy summary of simplivariate Components found by SIMPLICA.
+Summarizes the fitted pattern, score and membership of each component.
 Returns a data.frame with class \code{"summaryComponents"} and an attribute holding
 row/column index lists for printing details.
+}
+\examples{
+data("simplicaVignette")
+
+componentSummary <- summaryComponents(simplicaVignette$fit)
+componentSummary
+
+componentId <- 1
+membership <- attr(componentSummary, "indices")[[
+  match(componentId, componentSummary$componentId)
+]]
+membership$rowIdx
+membership$colIdx
+
 }

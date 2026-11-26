@@ -1,0 +1,320 @@
+---
+title: "Getting started with SIMPLICA"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting started with SIMPLICA}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>",
+                      fig.width = 7, fig.height = 4.5, dpi = 120)
+```
+
+## What can we learn from a matrix?
+
+Many data sets can be represented as a matrix in which the rows and columns describe two different aspects of the data. In a gene expression experiment, for example, the rows may represent genes and the columns experimental conditions. We may be interested in finding a group of genes that shows a similar expression pattern, but only under a particular subset of conditions.
+
+Clustering the rows using all columns may not reveal such a group. The pattern of interest may be absent from most columns, and the same gene may be involved in several processes, each relevant under different conditions. We therefore want to identify subsets of rows and columns simultaneously, without requiring each row or column to belong to only one group. This type of analysis is often referred to as biclustering.
+
+SIMPLICA is a biclustering method that searches for subsets of a numeric matrix whose values can be described by a common statistical model. We call such a subset a *component*. A component is defined by its rows, its columns and the pattern that describes the values at their intersections. Different components can have different patterns, and they can share rows, columns or even individual matrix entries.
+
+SIMPLICA uses a genetic algorithm (GA) to search for components. Rather than specifying a single type of pattern for the entire analysis, we can allow the algorithm to consider several different patterns. Components are found one at a time, with the contribution of each component removed from the matrix before searching for the next one.
+
+In this vignette we will analyse a simulated data set, examine the components that SIMPLICA finds and discuss how to interpret the results.
+
+## The data
+
+SIMPLICA comes with an example data set that was simulated specifically to illustrate the different types of patterns that the method can find. The matrix consists of 60 rows and 120 columns and contains six simulated components, one for each of the six built-in patterns. Some components overlap, and approximately 5% of the observations are missing. Because we know how the data were generated, we have some idea of what we might expect to find in the analysis. With real data, of course, this information is not available.
+
+```{r data}
+library(SIMPLICA)
+data("simplicaVignette")
+
+x <- simplicaVignette$data
+dim(x)
+mean(is.na(x))
+```
+
+Before fitting a model, it is useful to have a look at the matrix. The following heatmap displays the values in their original row and column order. Missing values are shown in grey.
+
+```{r dataPlot, fig.alt="Heatmap of the original simulated matrix, before biclustering.", out.width="100%"}
+oldPar <- par(bg = "grey85")
+image(seq_len(ncol(x)), seq_len(nrow(x)), t(as.matrix(x)[nrow(x):1, , drop = FALSE]),
+      col = hcl.colors(100, "Viridis"),
+      xlab = "Column", ylab = "Row", yaxt = "n")
+ticks <- unique(round(seq(1, nrow(x), length.out = 4)))
+axis(2, at = ticks, labels = nrow(x) + 1 - ticks)
+par(oldPar)
+```
+
+The rows and columns belonging to a component need not be adjacent in the original matrix. Consequently, patterns that become apparent after biclustering may be difficult to recognise in this representation.
+
+SIMPLICA accepts a numeric matrix or a numeric data frame. Missing observations should be represented by `NA`. There is no need to impute these values before fitting SIMPLICA. This is particularly useful when imputation might introduce or obscure the very patterns that we are looking for. The presence of missing values does, however, reduce the amount of information available for estimating a component.
+
+### Preparing the data
+
+The choice of preprocessing depends on the scientific question. SIMPLICA searches for patterns in the values that we supply to it. Transforming, centring or scaling the data can therefore change the components that are found.
+
+For example, if we are interested in finding subsets of the matrix with a common high or low level, centring each column separately may remove some of the differences that we want to identify. On the other hand, a transformation or scaling step may be appropriate when the original measurement scale is unsuitable for the analysis. There is no preprocessing procedure that is appropriate for every application of SIMPLICA.
+
+For this example we use the simulated matrix as supplied, without further preprocessing.
+
+## Patterns that SIMPLICA can find
+
+A component is more than a collection of large or small values. We also want a description of how the values within the component are related. SIMPLICA has six built-in patterns, ranging from a constant level to a combination of additive and multiplicative effects.
+
+Suppose that a component consists of a subset of rows indexed by $i$ and a subset of columns indexed by $j$. The models below describe the expected value $m_{ij}$ within that component. The symbols $\mu$, $a_i$, $b_j$, $u_i$ and $v_j$ denote a common level, row effects, column effects and row and column multiplicative terms, respectively. These expressions describe the model structure, not the constraints used internally to estimate its parameters.
+
+| Pattern | Model |
+|:---|:---|
+| `constant` | $m_{ij} = \mu$ |
+| `row` | $m_{ij} = \mu + a_i$ |
+| `column` | $m_{ij} = \mu + b_j$ |
+| `additive` | $m_{ij} = \mu + a_i + b_j$ |
+| `multiplicative` | $m_{ij} = \mu + u_i v_j$ |
+| `additive_multiplicative` | $m_{ij} = \mu + a_i + b_j + u_i v_j$ |
+
+For a constant component, the observations fluctuate around a single common level. In a row component, each row has its own level, but the expected values within a row are constant across the selected columns. A column component works the other way around.
+
+An additive component allows both row and column effects. For example, if two columns differ by a particular amount, this difference is the same for all rows in the component. The rows can have different overall levels, but their expected profiles across the columns are parallel.
+
+With a multiplicative pattern, the row terms determine how strongly (and in which direction) the column profile is expressed in each row. The difference between two columns need not be the same for all rows. The additive-multiplicative pattern combines this type of variation with separate row and column effects.
+
+The following artificial matrices illustrate the differences between the six patterns. They show ideal patterns without noise, independently of the simulated data set that we will analyse. All panels use the same colour scale.
+
+```{r patternPlot, fig.height=5, fig.alt="Six ideal component patterns shown on a common colour scale.", out.width="100%"}
+a <- seq(-2, 2, length.out = 8)
+b <- seq(-2, 2, length.out = 10)
+
+patternMatrices <- list(
+  constant = matrix(1, nrow = length(a), ncol = length(b)),
+  row = outer(a, rep(1, length(b))),
+  column = outer(rep(1, length(a)), b),
+  additive = outer(a, b, "+"),
+  multiplicative = outer(a, b),
+  additive_multiplicative = outer(a, b, "+") + outer(a, b)
+)
+
+oldPar <- par(mfrow = c(2, 3), mar = c(1, 1, 3, 1))
+limits <- range(unlist(patternMatrices))
+for (pattern in names(patternMatrices)) {
+  m <- patternMatrices[[pattern]]
+  image(t(m[nrow(m):1, ]), zlim = limits,
+        col = hcl.colors(100, "Blue-Red 3"),
+        axes = FALSE, xlab = "", ylab = "",
+        main = gsub("_", "-", pattern), cex.main = 0.9)
+  box()
+}
+par(oldPar)
+```
+
+The patterns are deliberately illustrated without noise so that we can see their structure. In real data, these distinctions are usually less obvious. A more complex model may also describe data generated by a simpler model. We will return to this issue when we discuss cross-validation.
+
+By default, SIMPLICA considers all six patterns during the search. If the scientific question calls for particular patterns only, the `patterns` argument can be used to restrict the search. SIMPLICA also supports user-defined patterns; this vignette concentrates on the built-in ones.
+
+## Fitting SIMPLICA
+
+A basic analysis can be performed by supplying the data matrix to `simplica()`. For this example, however, we know that six components were simulated and we want to search for up to six components. We specify this using `numSimComp`.
+
+```{r defaultFit, eval=FALSE}
+analysis <- simplica(df = x, numSimComp = 6)
+fit <- analysis$best
+```
+
+This is how we would normally start an analysis if we wanted to search for up to six components using the default GA settings. Depending on the dimensions and structure of the data, fitting SIMPLICA can take considerable time.
+
+For the results presented in this vignette, a shorter analysis was performed in advance. The following code reproduces that analysis using the settings with which the stored results were obtained.
+
+```{r reproduce, eval=FALSE}
+analysis <- simplica(
+  df = x,
+  numSimComp = 6,
+  mySeeds = 1:4,
+  popSize = 100,
+  elitism = 40,
+  maxIter = 500,
+  run = 150
+)
+
+fit <- analysis$best
+```
+
+The two code blocks above are alternatives; it is not necessary to run both. The smaller population and shorter search used to generate the vignette results are not intended as recommended GA settings for other data sets. A shorter search is less expensive, but it may also fail to find good components. For an initial analysis of real data, we recommend starting with the default settings.
+
+The remainder of the vignette uses the stored results. This allows us to examine a complete analysis without running the genetic algorithm when the vignette is built.
+
+```{r fit}
+fit <- simplicaVignette$fit
+```
+
+### How the components are found
+
+The search for a component involves choosing its rows, its columns and a pattern. Even for a moderately sized matrix, the number of possible subsets is enormous. Enumerating all combinations of rows and columns is therefore not a practical approach.
+
+SIMPLICA uses a genetic algorithm to explore this search space. The algorithm maintains a population of candidate components and uses their fitness to guide the search towards better candidates. New candidates are generated from existing ones, allowing the algorithm to explore different combinations of rows, columns and patterns. This is a stochastic search procedure: different runs on the same data may produce different results, and there is no guarantee that a particular run finds the globally best component.
+
+The fitness score is used to judge how well a candidate represents a component relative to the background. It is the objective of the search; it should not be interpreted as a probability, a p-value or a measure of statistical significance.
+
+For the example analysis, four independent GA starts are made at each extraction step, using the seeds 1 to 4. Each start uses a population of 100 candidates and runs for at most 500 generations. The `elitism` setting controls how many of the best candidates are retained during the search. The `run` argument allows a start to stop early when its best fitness has not improved for 150 generations.
+
+After the starts have finished, SIMPLICA selects the candidate with the highest fitness and fits its associated pattern. The fitted contribution of this component is then removed from the matrix. More precisely, within the selected rows and columns, the fitted values minus the background location are subtracted from the current matrix. The rest of the matrix is left unchanged. SIMPLICA uses the resulting matrix as input for the next search step.
+
+This procedure is repeated until the requested maximum number of components is reached or the best candidate has a non-positive fitness score. Thus, `numSimComp` specifies an upper limit, not a number of components that must be returned.
+
+This sequential approach is important when interpreting overlapping components. Finding a component does not exclude its rows or columns from subsequent searches. At the same time, subsequent components depend on what has already been found and subtracted. An error in an early component can therefore affect later components. SIMPLICA does not jointly optimise all extracted components in a single search.
+
+### The background
+
+SIMPLICA distinguishes the signal associated with a component from the background of the matrix. The background location represents the reference level against which the component is fitted and removed, and the background scale describes the variability of the background.
+
+By default, both quantities are estimated from the input matrix and held fixed throughout the extraction procedure. They are not re-estimated after each component is removed. If suitable background estimates are available from other information, they can be supplied through `backgroundSignal` and `backgroundScale`. Both arguments must be supplied together when using your own estimates.
+
+It is worth considering whether the automatically estimated background is a meaningful reference for your application, particularly when the data do not have a common measurement scale or when external information about the background is available.
+
+## Looking at the results
+
+The object `fit` contains the results of the sequential extraction. A convenient starting point is `summaryComponents()`, which gives an overview of the components without having to examine the full result object.
+
+```{r summary}
+componentSummary <- summaryComponents(fit)
+componentSummary
+```
+
+Six components were retained in this analysis. This is the number of simulated components, but that alone does not establish that SIMPLICA has recovered them correctly. To assess the quality of the recovery, we would need to consider their row and column memberships and their patterns.
+
+The `componentId` identifies the order in which the components were found. Component 1 was found in the original matrix, component 2 in the matrix after removing the first component, and so on. The dimensions of a component tell us how many rows and columns take part in its pattern. A component containing many rows but few columns may be just as interesting as a more balanced component, depending on the application.
+
+The score is the fitness of the selected candidate at its extraction step. Later scores refer to matrices from which earlier contributions have already been removed. They are not independent evaluations of different components in the original matrix. A high score does not by itself establish that a component is scientifically meaningful.
+
+### Which rows and columns belong to a component?
+
+The summary also contains the row and column indices for each component. These are stored as an attribute of the summary object. To obtain the indices of the first component, we use:
+
+```{r members}
+membership <- attr(componentSummary, "indices")[[1]]
+membership$rowIdx
+membership$colIdx
+```
+
+The indices refer to the original row and column order of `x`. We can therefore extract the corresponding submatrix directly.
+
+```{r subset}
+xComponent <- x[membership$rowIdx, membership$colIdx, drop = FALSE]
+dim(xComponent)
+```
+
+This submatrix contains the original observations at the selected positions. For the first component, these are also the observations supplied to the search at its extraction step. For subsequent components, the search is performed on a matrix from which previous component contributions have already been removed. In an overlapping region, the original observations can therefore contain contributions from several components. This distinction matters when we inspect or interpret the fitted pattern of a later component.
+
+If the rows and columns of the input matrix have meaningful names, the indices can also be used to retrieve those names. In a gene expression application, for instance, this gives us the genes and conditions associated with a particular component for further biological investigation.
+
+### Visualising the components
+
+The function `plotComponentResult()` displays the original data and outlines the selected components. With `rearrange = TRUE`, the rows and columns are rearranged for display to help us recognise the component structure.
+
+```{r plot, fig.alt="Original matrix with rows and columns rearranged and the extracted components outlined.", out.width="100%"}
+plotComponentResult(x, fit$string, fit$componentPatterns,
+                    fit$componentScores, rearrange = TRUE,
+                    showAxisLabels = FALSE)
+```
+
+Compare this plot with the heatmap of the original data at the beginning of the vignette. The outlines indicate which parts of the matrix SIMPLICA has identified as components. The colours still represent the observed values, not the fitted values of the models.
+
+When components overlap, it may not be possible to arrange all their rows and columns into separate contiguous blocks at the same time. Moreover, the observed values in an overlapping region need not resemble the pattern of any individual component, because several contributions may be present there. The plot is useful for obtaining an overview of the component structure, but it is not a plot of the six fitted models in isolation.
+
+## Interpreting the component patterns
+
+Two columns in the component summary deserve some additional explanation: `gaPattern` and `cvPattern`.
+
+The genetic algorithm searches simultaneously for the row membership, the column membership and the pattern of a component. A more flexible pattern may describe the observed data better than a simpler one, even when the additional structure is not particularly useful for predicting other observations. SIMPLICA therefore also examines the suitability of the patterns using cross-validation.
+
+During this cross-validation, some observed cells of the identified component are held out while the pattern is fitted to the remaining cells. The held-out cells are used to evaluate the fit. This provides information about how well the different patterns describe the component beyond the cells used to estimate their parameters in that fold. The procedure is carried out on the matrix used to find that component, and not on the original input matrix.
+
+```{r patterns}
+componentSummary[, c("componentId", "gaPattern", "cvPattern")]
+```
+
+`gaPattern` is the pattern selected by the genetic algorithm and used when removing the component from the matrix. `cvPattern` is the pattern suggested by the subsequent cross-validation. These need not be the same.
+
+For the first component in this example, the genetic algorithm selected the additive-multiplicative pattern, whereas cross-validation suggests an additive pattern. An additive model describes systematic differences between rows and between columns without an additional multiplicative term. The CV result suggests that the simpler description may be adequate for this component.
+
+The distinction between these two patterns is also relevant for interpreting the rest of the analysis. SIMPLICA removed the additive-multiplicative fit and not the additive fit as suggested by cross-validation. The actual fitted models used for subtraction are stored in `fit$componentFits`.
+
+## Examining the genetic algorithm results
+
+A genetic algorithm may find different solutions when started with different random seeds. For this reason it is useful to examine the results of the individual starts, especially when the analysis will be used to draw substantive conclusions.
+
+```{r search}
+fit$seedFitness
+fit$bestSeeds
+fit$stopReason
+```
+
+`seedFitness` contains the best fitness obtained by each start at each extraction step. All four starts within a step use the same input matrix, so their scores can be compared directly at that step. `bestSeeds` identifies which start supplied the component that was retained.
+
+In this example all four starts reach the same fitness at steps 2 and 6. At the first step, the start with seed 4 obtains the highest fitness. The component from that start is fitted and removed, and the resulting matrix is used by all four starts at step 2.
+
+Agreement between the fitness values of different starts is encouraging, but equal fitness values do not necessarily imply identical components. Different combinations of rows, columns and patterns can produce similar or identical scores. Nor does agreement prove that the global optimum has been found. Conversely, substantial differences between starts may indicate that a larger search effort is worthwhile.
+
+When investigating the stability of an analysis, it is useful to look not only at the fitness values but also at the actual components. Repeating the entire analysis with other seeds can reveal whether the same structures are recovered and whether differences in the early steps affect later components. If the results depend strongly on the random seeds, we should be cautious about interpreting any one solution as definitive.
+
+The `stopReason` field records why the sequential extraction ended. Inspecting it helps distinguish between an analysis that reached its requested maximum number of components and one that terminated earlier because the search did not return a candidate with positive fitness.
+
+## What is left in the matrix?
+
+After the final component has been removed, SIMPLICA returns the remaining matrix in `fit$residuals`. We can compare its range with that of the original matrix.
+
+```{r residuals}
+range(x, na.rm = TRUE)
+range(fit$residuals, na.rm = TRUE)
+```
+
+Looking at the range provides a first impression of the size of the remaining values, but it does not tell us whether systematic structure remains in the matrix. It is also useful to compare heatmaps of the original and remaining matrices. Here we keep the original row and column order and use the same colour scale for both plots so that differences in colour have the same meaning in both panels.
+
+```{r residualPlot, fig.height=4, fig.alt="Original and remaining matrices on the same colour scale.", out.width="100%"}
+oldPar <- par(mfrow = c(1, 2), mar = c(4, 2, 3, 1))
+limits <- range(x, fit$residuals, na.rm = TRUE)
+palette <- hcl.colors(100, "Viridis")
+
+image(t(as.matrix(x)[nrow(x):1, , drop = FALSE]), zlim = limits, col = palette,
+      axes = FALSE, xlab = "Columns", ylab = "",
+      main = "Original matrix")
+box()
+image(t(as.matrix(fit$residuals)[nrow(x):1, , drop = FALSE]), zlim = limits, col = palette,
+      axes = FALSE, xlab = "Columns", ylab = "",
+      main = "Remaining matrix")
+box()
+par(oldPar)
+```
+
+The remaining matrix is not expected to consist of zeros. Since SIMPLICA removes fitted component values relative to the background, the background level and unexplained variation remain. A successful fit should reduce the systematic structure associated with the extracted components. If additional patterns appear to remain, we may want to investigate whether more components are present or whether a different pattern or a more extensive search would be appropriate.
+
+The absence of an obvious pattern in a heatmap does not demonstrate that all relevant structure has been found. Likewise, reaching a non-positive best fitness does not prove that no further components exist: it means that the search did not find another component with positive fitness under the settings used.
+
+## Where to find the results
+
+The following overview may be useful when working with the output of your own analysis. The name `analysis` refers to the full object returned by `simplica()`, whereas `fit` refers to `analysis$best`, the retained sequential extraction.
+
+| Result | Contents |
+|:---|:---|
+| `summaryComponents(fit)` | Overview of the retained components, including their sizes, scores and patterns. |
+| `attr(componentSummary, "indices")` | Row and column memberships of the components. |
+| `fit$componentPatterns` | Patterns used during the sequential extraction. |
+| `fit$componentScores` | Fitness scores of the retained components. |
+| `fit$componentFits` | Fitted component values and model parameters used for subtraction. |
+| `fit$residuals` | Matrix remaining after the final extraction step. |
+| `fit$seedFitness` | Best fitness of each GA start at each extraction step. |
+| `fit$bestSeeds` | Winning seed for each retained component. |
+| `fit$stopReason` | Reason why the extraction stopped. |
+| `analysis$raw` | Individual GA results, grouped by extraction step and seed. |
+
+The full `analysis` object is available when you run `simplica()` yourself. The stored fit used in this vignette allows us to examine the retained components and their associated search summaries without repeating the search.
+
+## Applying SIMPLICA to your own data
+
+When starting an analysis, consider what kind of structure you are looking for and whether the scale of the input data preserves that structure. Unless there is a reason to restrict the patterns, it is reasonable to start by allowing SIMPLICA to consider all six built-in patterns. We recommend using the default GA settings for an initial analysis rather than the shortened settings used for the stored example in this vignette.
+
+For real data, the number of components is usually unknown. The `numSimComp` argument lets us place an upper limit on the search, but neither reaching this limit nor stopping earlier should be taken as an estimate of the true number of components. Examining the extracted components, the remaining matrix and the consistency of repeated searches can help us decide whether further analysis is useful.
+
+Finally, the components found by SIMPLICA are descriptions of structure in the supplied data. Their scientific interpretation depends on the meaning of the rows and columns, the way the measurements were obtained and the purpose of the analysis. The component memberships and fitted patterns are often the starting point for further investigation.

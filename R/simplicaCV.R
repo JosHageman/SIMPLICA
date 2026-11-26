@@ -1,258 +1,173 @@
-#' Test Simplivariate Components with Cross-Validation Pattern Selection
+#' Cross-validate fitted component patterns
 #'
-#' This function performs cross-validation-based pattern testing for Simplivariate Components
-#' in a SIMPLICA object. It evaluates different pattern functions using cross-validation
-#' and selects the best performing pattern for each component. Fitters are required
-#' for all patterns with no fallback options.
+#' Uses held-out cells to select the simplest pattern within `parsimonyMargin`
+#' of the reference pattern's pooled RMSE. With `compareToBest = TRUE`, all
+#' testable patterns can qualify. Patterns are included in order of valid split
+#' count while at least `minValidRepeats` common splits remain. The lowest pooled
+#' RMSE on those common splits sets the reference. Otherwise the GA pattern
+#' sets the reference and each simpler alternative is compared on its shared splits.
+#' Row and column membership, GA fitness, component
+#' scores, and the original GA-selected patterns are never changed. When the
+#' object is updated, fits returned by simplica() retain the fits used for deflation.
+#' Standalone component objects refresh parameter fits for the CV-selected pattern.
 #'
-#' @param foundObject A simplica object containing Simplivariate Components
-#' @param df Data frame or matrix with the original data
-#' @param patternFunctions List of pattern functions to evaluate (default: defaultPatternFunctions())
-#' @param patternFitters List of pattern fitting functions (default: defaultPatternFitters())
-#' @param preferenceOrder Character vector specifying preference order for pattern selection (default: names(patternFunctions))
-#' @param nRepeats Integer, number of cross-validation repeats (default: 40)
-#' @param testFraction Numeric, fraction of data to use for testing (default: 0.2)
-#' @param minCellsForModels Integer, minimum number of cells required for model fitting (default: 25)
-#' @param parsimonyMargin Numeric, margin for parsimony-based model selection (default: 0.05)
-#' @param requireFitters Logical, whether fitters are required for all patterns (default: TRUE)
-#' @param updateObject Logical, whether to update and return the input object (default: TRUE)
-#' @param verbose Logical, whether to print progress messages (default: FALSE)
-#' @param ignoreNaComponents Logical, whether to skip components with NA patterns (default: TRUE)
+#' @param foundObject A `simplica` object with fixed component membership.
+#' @param df Original numeric data matrix or data frame.
+#' @param patterns Built-in patterns to compare.
+#' @param customPatterns Named custom approximation functions.
+#' @param customPatternComplexity Named complexities for custom patterns.
+#' @param preferenceOrder Tie-break order between equal-complexity patterns.
+#' @param nRepeats Number of repeated held-out splits.
+#' @param minValidRepeats Minimum number of shared valid splits for comparison with the reference pattern.
+#' @param compareToBest Use the lowest CV RMSE among patterns with enough valid
+#'   splits as the reference. Defaults to true for a fit returned by simplica().
+#' @param testFraction Requested fraction of usable cells to hold out.
+#' @param parsimonyMargin Relative RMSE margin for selecting a simpler model.
+#' @param cvSeed Seed for reproducible splits; the caller's RNG is preserved.
+#' @param updateObject Return the input object with CV-specific fields added.
+#' @param verbose Print component and repeat progress.
 #'
-#' @return If \code{updateObject = TRUE}, returns the input \code{simplica} object 
-#' with two new fields:
-#' \describe{
-#'   \item{\code{componentPatternsUpdated}}{Character vector with the selected 
-#'   pattern per component after cross-validation. If a component is skipped or empty, 
-#'   the entry is \code{NA}.}
-#'   \item{\code{componentAudit}}{Data frame containing detailed cross-validation 
-#'   results for each component, with the following columns: 
-#'   \describe{
-#'     \item{\code{componentId}}{Numeric ID of the component.}
-#'     \item{\code{originalPattern}}{Pattern label originally assigned.}
-#'     \item{\code{selectedPattern}}{Pattern chosen after CV-based evaluation.}
-#'     \item{\code{reason}}{Explanation of why a pattern was selected or skipped.}
-#'     \item{\code{nRows}, \code{nCols}, \code{nCells}}{Dimensions of the component.}
-#'     \item{\code{nRepeats}, \code{testFraction}, \code{parsimonyMargin}}{CV settings used.}
-#'     \item{\code{cvMean_<pattern>}}{Mean RMSE over CV folds for each tested pattern.}
-#'     \item{\code{cvSd_<pattern>}}{Standard deviation of RMSE across CV folds.}
-#'     \item{\code{winFrac_<pattern>}}{Fraction of CV repeats where the pattern was the best performer.}
-#'   }}
-#' }
+#' @return With `updateObject = TRUE`, the unchanged input object plus
+#' `componentPatternsUpdated` and `componentAudit`. Standalone component objects
+#' also receive refreshed `componentFits`.
+#' Otherwise a list containing only the two CV-specific results.
+#' `componentPatternsUpdated` retains the original GA-selected pattern for a
+#' component when CV cannot make a decision.
 #'
-#' If \code{updateObject = FALSE}, returns a list with the same two elements
-#' (\code{componentPatternsUpdated}, \code{componentAudit}).
-#'
-#' @details The function performs the following steps:
-#' \itemize{
-#'   \item Validates the input simplica object and data dimensions
-#'   \item Checks that all pattern functions have corresponding fitters
-#'   \item For each simplivariate component, performs cross-validation pattern evaluation
-#'   \item Selects the best performing pattern based on RMSE and parsimony
-#'   \item Updates component patterns and provides detailed test information
-#' }
+#' @details Fits returned by simplica() are evaluated component by component on their
+#' original residual trajectory. Standalone component objects use the supplied data.
+#' Multi-component CV requires the original residual trajectory. Components
+#' whose GA score is not positive are not cross-validated.
 #'
 #' @export
-
 simplicaCV <- function(foundObject,
                        df,
-                       patternFunctions = defaultPatternFunctions(),
-                       patternFitters = defaultPatternFitters(),
-                       preferenceOrder = names(patternFunctions),
-                       nRepeats = 40,
+                       patterns = defaultPatterns(),
+                       customPatterns = list(),
+                       customPatternComplexity = list(),
+                       preferenceOrder = c(patterns, names(customPatterns)),
+                       nRepeats = 5,
                        testFraction = 0.2,
-                       minCellsForModels = 25,
-                       parsimonyMargin = 0.05,
-                       requireFitters = TRUE,
+                       parsimonyMargin = 0.02,
+                       cvSeed = 1,
                        updateObject = TRUE,
                        verbose = FALSE,
-                       ignoreNaComponents = TRUE) {
-
+                       minValidRepeats = nRepeats,
+                       compareToBest = !is.null(foundObject[["components"]])) {
+  stopifnot(is.numeric(minValidRepeats), length(minValidRepeats) == 1, is.finite(minValidRepeats),
+            minValidRepeats == floor(minValidRepeats), minValidRepeats >= 1, minValidRepeats <= nRepeats)
+  if (!is.null(foundObject[["components"]])) {
+    return(.cvOnResiduals(foundObject, df, patterns, customPatterns, customPatternComplexity,
+      preferenceOrder, nRepeats, testFraction, parsimonyMargin, cvSeed, updateObject, verbose, minValidRepeats, compareToBest))
+  }
   if (!inherits(foundObject, "simplica")) stop("Input must be a simplica object.")
   if (is.null(foundObject$string)) stop("simplica object lacks 'string'.")
-  if (is.null(foundObject$nRows) || is.null(foundObject$nCols)) stop("simplica object lacks nRows/nCols.")
-  if (is.null(foundObject$componentPatterns)) warning("simplica object lacks 'componentPatterns'; proceeding.")
-
-  mat <- as.matrix(df)
-  if (nrow(mat) != foundObject$nRows || ncol(mat) != foundObject$nCols) {
+  if (is.null(foundObject$nRows) || is.null(foundObject$nCols))
+    stop("simplica object lacks nRows/nCols.")
+  mat <- .simplicaValidateDataMatrix(df)
+  if (nrow(mat) != foundObject$nRows || ncol(mat) != foundObject$nCols)
     stop("df dimensions do not match simplica object nRows/nCols.")
-  }
+  .simplicaValidatePatterns(
+    patterns, customPatterns, customPatternComplexity
+  )
+  nRepeats <- .simplicaValidateCVControl(
+    nRepeats, testFraction, parsimonyMargin, cvSeed)
+  patternNames <- c(patterns, names(customPatterns))
+  preferenceOrder <- unique(c(intersect(preferenceOrder, patternNames), patternNames))
 
-  missingFitters <- setdiff(names(patternFunctions), names(patternFitters))
-  if (requireFitters && length(missingFitters) > 0L) {
-    stop(sprintf("No fitter defined for pattern(s): %s",
-                 paste(missingFitters, collapse = ", ")))
-  }
-
-  string <- foundObject$string
   nRows <- foundObject$nRows
   nCols <- foundObject$nCols
+  string <- as.integer(foundObject$string)
+  nComponents <- .simplicaValidateComponentCount(foundObject$nComponents)
+  if (nComponents != 1) stop("Multi-component CV requires a SIMPLICA result with its residual trajectory.")
+  if (length(string) != nRows + nCols)
+    stop("simplica membership string length does not match nRows + nCols.")
+  .simplicaValidateMembership(string, nComponents)
+  componentScores <- foundObject$componentScores
+  if (is.null(componentScores) || length(componentScores) < nComponents) {
+    stop("simplica object lacks a complete 'componentScores' vector.")
+  }
   originalPatterns <- as.character(foundObject$componentPatterns)
+  if (length(originalPatterns) < nComponents)
+    originalPatterns <- c(originalPatterns,
+      rep(NA_character_, nComponents - length(originalPatterns)))
 
-  getComponentIndicesFromString <- function(string, nCols, nRows, k) {
-    stopifnot(length(string) == (nCols + nRows))
-    idxRows <- string[seq_len(nRows)]
-    idxCols <- string[nRows + seq_len(nCols)]
-    rows <- which(idxRows == k)
-    cols <- which(idxCols == k)
-    list(rows = rows, cols = cols)
-  }
+  updatedPatterns <- originalPatterns
+  componentAudit <- vector("list", nComponents)
+  names(componentAudit) <- paste0("component_", seq_len(nComponents))
 
-  idxRows <- string[seq_len(nRows)]
-  idxCols <- string[nRows + seq_len(nCols)]
-  componentIds <- sort(unique(c(idxRows, idxCols)))
-  componentIds <- componentIds[componentIds != 0]
-
-  decisions <- vector("list", length(componentIds))
-  names(decisions) <- paste0("component_", componentIds)
-
-  newPatterns <- originalPatterns
-
-  for (i in seq_along(componentIds)) {
-    k <- componentIds[i]
-    idx <- getComponentIndicesFromString(string, nCols, nRows, k)
-    rows <- idx$rows
-    cols <- idx$cols
-    nR <- length(rows)
-    nC <- length(cols)
-
-    if (verbose) message(sprintf("CV component %d (%d x %d)", k, nR, nC))
-
-    originalPatternK <- if (!is.null(originalPatterns) && k >= 1L && k <= length(originalPatterns)) {
-      originalPatterns[k]
-    } else {
-      NA_character_
-    }
-
-    if (ignoreNaComponents && is.na(originalPatternK)) {
-      # keep updated pattern as NA
-      if (!is.null(newPatterns) && k >= 1L && k <= length(newPatterns)) newPatterns[k] <- NA_character_
-
-      decisions[[i]] <- list(
-        componentId = k,
-        originalPattern = originalPatternK,
-        selectedPattern = NA_character_,
-        reason = "skipped: original pattern NA (ignored in CV)",
-        nRows = nR,
-        nCols = nC,
-        nCells = nR * nC,
-        nRepeats = nRepeats,
-        testFraction = testFraction,
-        parsimonyMargin = parsimonyMargin,
-        # CV summary placeholders
-        cvMean_constant = NA_real_,
-        cvMean_additive = NA_real_,
-        cvMean_multiplicative = NA_real_,
-        cvSd_constant = NA_real_,
-        cvSd_additive = NA_real_,
-        cvSd_multiplicative = NA_real_,
-        winFrac_constant = NA_real_,
-        winFrac_additive = NA_real_,
-        winFrac_multiplicative = NA_real_
-      )
-
-      if (verbose) {
-        message(sprintf("CV component %d skipped (NA pattern).", k))
-      }
-      next
-    }
-
-    if (nR * nC == 0L) {
-      decisions[[i]] <- list(
-        componentId = k,
-        originalPattern = originalPatternK,
-        selectedPattern = NA_character_,
-        reason = "empty component",
-        nRows = nR,
-        nCols = nC,
-        nCells = nR * nC,
-        nRepeats = nRepeats,
-        testFraction = testFraction,
-        parsimonyMargin = parsimonyMargin,
-        cvMean_constant = NA_real_,
-        cvMean_additive = NA_real_,
-        cvMean_multiplicative = NA_real_,
-        cvSd_constant = NA_real_,
-        cvSd_additive = NA_real_,
-        cvSd_multiplicative = NA_real_,
-        winFrac_constant = NA_real_,
-        winFrac_additive = NA_real_,
-        winFrac_multiplicative = NA_real_
-      )
-      next
-    }
-
-    audit <- componentCVPatterns(
-      df = mat,
-      rows = rows,
-      cols = cols,
-      patternFunctions = patternFunctions,
-      patternFitters = patternFitters,
-      preferenceOrder = preferenceOrder,
-      nRepeats = nRepeats,
-      testFraction = testFraction,
-      minCellsForModels = minCellsForModels,
-      parsimonyMargin = parsimonyMargin,
-      requireFitters = requireFitters,
-      verbose = verbose
+  component <- as.integer(1)
+  if (!isTRUE(componentScores[component] > 0)) {
+    componentAudit[[component]] <- list(
+      decision = NA_character_,
+      reason = "inactive component",
+      active = FALSE,
+      originalPattern = originalPatterns[component],
+      componentId = component
     )
-
-    selected <- audit$decision
-    if (!is.null(newPatterns) && k >= 1L && k <= length(newPatterns)) newPatterns[k] <- selected
-
-    cvS <- audit$cv
-    decisions[[i]] <- c(
-      list(
-        componentId = k,
-        originalPattern = originalPatternK,
-        selectedPattern = selected,
-        reason = audit$reason,
-        nRows = audit$meta$nRows,
-        nCols = audit$meta$nCols,
-        nCells = audit$meta$nCells,
-        nRepeats = audit$meta$nRepeats,
-        testFraction = audit$meta$testFraction,
-        parsimonyMargin = audit$meta$parsimonyMargin
-      ),
-      as.list(setNames(cvS$meanRmse, paste0("cvMean_", cvS$model))),
-      as.list(setNames(cvS$sdRmse,   paste0("cvSd_", cvS$model))),
-      as.list(setNames(cvS$winFrac,  paste0("winFrac_", cvS$model)))
-    )
-  }
-
-  allNames <- unique(unlist(lapply(decisions, names)))
-
-  rowList <- lapply(seq_along(decisions), function(i) {
-    d <- decisions[[i]]
-    if (is.null(d)) d <- list()
-
-    if (length(d)) {
-      zeroLen <- names(d)[vapply(d, function(z) length(z) == 0L, logical(1))]
-      for (nm in zeroLen) d[[nm]] <- NA
-    }
-
-    missing <- setdiff(allNames, names(d))
-    for (nm in missing) d[[nm]] <- NA
-
-    tooLong <- names(d)[vapply(d, function(z) length(z) > 1L, logical(1))]
-    if (length(tooLong)) {
-      stop(sprintf("Non-scalar fields in decisions[[%d]]: %s",
-                   i, paste(tooLong, collapse = ", ")))
-    }
-
-    d <- d[allNames]
-    as.data.frame(d, stringsAsFactors = FALSE, check.names = FALSE)
-  })
-
-  auditDf <- do.call(rbind, rowList)
-  rownames(auditDf) <- NULL
-
-  if (updateObject) {
-    outObj <- foundObject
-    outObj$componentPatternsUpdated <- newPatterns
-    outObj$componentAudit <- auditDf
-    return(outObj)
+  } else if (is.na(originalPatterns[component]) ||
+      !originalPatterns[component] %in% patternNames) {
+    componentAudit[[component]] <- list(decision = NA_character_,
+      reason = "GA pattern unavailable for comparison", active = TRUE,
+      originalPattern = originalPatterns[component], componentId = component)
   } else {
-    list(componentPatternsUpdated = newPatterns, componentAudit = auditDf)
+    indices <- .simplicaComponentIndices(string, nRows, nCols, component)
+    rows <- indices$rows
+    cols <- indices$cols
+    if (verbose) message(sprintf("CV component %d (%d x %d)", component,
+      length(rows), length(cols)))
+
+    audit <- .componentCVPatternsCore(
+      mat = mat, rows = rows, cols = cols, patterns = patterns,
+      customPatterns = customPatterns,
+      customPatternComplexity = customPatternComplexity,
+      preferenceOrder = preferenceOrder, nRepeats = nRepeats,
+      testFraction = testFraction, parsimonyMargin = parsimonyMargin,
+      cvSeed = cvSeed, verbose = verbose,
+      referencePattern = originalPatterns[component], minValidRepeats = minValidRepeats, compareToBest = compareToBest)
+    audit$originalPattern <- originalPatterns[component]
+    audit$componentId <- component
+    audit$active <- TRUE
+    if (!is.na(audit$decision)) {
+      updatedPatterns[component] <- audit$decision
+    }
+    componentAudit[[component]] <- audit
   }
+
+  if (!isTRUE(updateObject)) return(list(
+    componentPatternsUpdated = updatedPatterns,
+    componentAudit = componentAudit))
+  answer <- foundObject
+  answer$componentPatternsUpdated <- updatedPatterns
+  answer$componentAudit <- componentAudit
+  answer$componentFits <- .simplicaRefitSelectedComponents(
+    answer, mat, customPatterns
+  )
+  answer
+}
+
+.cvOnResiduals <- function(foundObject, df, patterns, customPatterns, customPatternComplexity,
+                           preferenceOrder, nRepeats, testFraction, parsimonyMargin, cvSeed, updateObject, verbose, minValidRepeats, compareToBest) {
+  residuals <- .simplicaValidateDataMatrix(df)
+  if (!identical(dim(residuals), c(foundObject$nRows, foundObject$nCols))) stop("df dimensions do not match simplica object.")
+  answer <- foundObject
+  answer$componentPatternsUpdated <- foundObject$componentPatterns
+  answer$componentAudit <- lapply(seq_len(foundObject$nComponents), function(i) list(decision = NA_character_, active = FALSE))
+  for (i in seq_along(foundObject$components)) {
+    original <- foundObject$components[[i]]
+    updated <- simplicaCV(original, residuals, patterns, customPatterns, customPatternComplexity,
+      preferenceOrder, nRepeats, testFraction, parsimonyMargin, cvSeed, FALSE, verbose, minValidRepeats, compareToBest)
+    answer$componentPatternsUpdated[i] <- updated$componentPatternsUpdated
+    audit <- updated$componentAudit[[1]]
+    audit$componentId <- i
+    answer$componentAudit[[i]] <- audit
+    answer$components[[i]]$componentPatternsUpdated <- updated$componentPatternsUpdated
+    answer$components[[i]]$componentAudit <- updated$componentAudit
+    # Replay the fitted deflation to evaluate the next component on its search residuals.
+    fit <- original$componentFits[[1]]
+    residuals[fit$rows, fit$columns] <- .deflateBlock(residuals[fit$rows, fit$columns, drop = FALSE], fit$fitted, foundObject$background$signal)
+  }
+  if (!updateObject) return(list(componentPatternsUpdated = answer$componentPatternsUpdated,
+    componentAudit = answer$componentAudit))
+  return(answer)
 }

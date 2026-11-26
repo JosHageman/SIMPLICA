@@ -1,13 +1,21 @@
-#' Plot non-contiguous simplivariate components by pattern type, with optional reordering
+# Column names used in ggplot2 aesthetic mappings.
+utils::globalVariables(c("Row", "Col", "Value", "ComponentID", "Label"))
+
+#' Plot fitted components
 #'
-#' Visualizes GA-detected simplivariate components on the original matrix as outlined cells,
-#' colored by pattern type.
+#' Draws the original matrix as a heatmap and outlines fitted components by pattern.
 #'
-#' @param df Original data matrix
-#' @param string Best GA string (vector of length nrow(df) + ncol(df); rows first, then cols)
-#' @param componentPatterns Vector of component types (from fitness(..., returnPatterns = TRUE))
+#' @param df Original data matrix. Missing values are permitted and are rendered
+#'   using the missing-value colour of the selected ggplot2 fill scale.
+#' @param string Membership string from the fit (vector of length nrow(df) +
+#'   ncol(df); rows first, then columns). Values are bit masks, allowing rows
+#'   and columns to belong to multiple components.
+#' @param componentPatterns Vector of component pattern names, typically
+#'   obtained from a fitted SIMPLICA object.
 #' @param componentScores Vector of fitness scores per component
-#' @param scoreCutoff Minimum score a component must have to be shown (default: 0 = show all)
+#' @param scoreCutoff Minimum score a component must have to be shown. At the
+#'   default of 0, only strictly positive components are shown; use a lower
+#'   value to show inactive or negative component slots.
 #' @param showAxisLabels Logical: show axis tick labels (default: TRUE)
 #' @param showComponentLabels Logical: show component labels inside clusters (default: TRUE)
 #' @param title Title for the plot (default: "Detected Components")
@@ -15,6 +23,21 @@
 #' @param grayscale Logical: use grayscale for heatmap background (default: TRUE)
 #'
 #' @return ggplot object
+#'
+#' @examples
+#' data("simplicaVignette")
+#'
+#' fit <- simplicaVignette$fit
+#'
+#' plotComponentResult(
+#'   df = simplicaVignette$data,
+#'   string = fit$string,
+#'   componentPatterns = fit$componentPatterns,
+#'   componentScores = fit$componentScores,
+#'   showAxisLabels = FALSE,
+#'   rearrange = TRUE
+#' )
+#'
 #' @export
 plotComponentResult <- function(df, string, componentPatterns, componentScores,
                                 scoreCutoff = 0,
@@ -23,9 +46,6 @@ plotComponentResult <- function(df, string, componentPatterns, componentScores,
                                 title = "Detected Components",
                                 rearrange = FALSE,
                                 grayscale = TRUE) {
-
-  if (!requireNamespace("ggplot2", quietly = TRUE)) stop("Please install 'ggplot2'.")
-  if (!requireNamespace("ggsci",    quietly = TRUE)) stop("Please install 'ggsci'.")
 
   stopifnot(is.matrix(df) || is.data.frame(df))
   df <- as.matrix(df)
@@ -37,7 +57,13 @@ plotComponentResult <- function(df, string, componentPatterns, componentScores,
 
   idxRows <- string[1:nRows]
   idxCols <- string[(nRows + 1):(nRows + nCols)]
+  nComponents <- length(componentScores)
+  nComponents <- .simplicaValidateComponentCount(nComponents)
+  .simplicaValidateMembership(string, nComponents)
+  componentMasks <- .simplicaComponentMasks(nComponents)
 
+  # Return n usable axis labels, replacing absent/empty names with prefix-based
+  # labels and making duplicates unique for heatmap coordinates.
   makeSafeNames <- function(nms, prefix, n) {
     if (is.null(nms)) nms <- rep("", n)
     nms[is.na(nms)] <- ""
@@ -52,12 +78,17 @@ plotComponentResult <- function(df, string, componentPatterns, componentScores,
   rowNames <- rownames(df)
   colNames <- colnames(df)
 
-  keepIdx <- which(componentScores >= scoreCutoff)
+  keepIdx <- which(if (scoreCutoff == 0) {
+    componentScores > 0
+  } else componentScores >= scoreCutoff)
 
+  # Return row indices that group similar binary component memberships.
+  # Prioritize common component columns, sort memberships lexicographically,
+  # and use row totals and original indices to resolve ties deterministically.
   fastLexiOrder <- function(m) {
     n <- nrow(m)
-    if (n <= 1L) return(seq_len(n))
-    if (ncol(m) == 0L || all(colSums(m) == 0L)) return(seq_len(n))
+    if (n <= 1) return(seq_len(n))
+    if (ncol(m) == 0 || all(colSums(m) == 0)) return(seq_len(n))
     if (is.logical(m)) m <- m + 0L
     if (is.double(m))  m <- (m != 0) + 0L
     ordCols <- order(colSums(m), decreasing = TRUE)
@@ -68,13 +99,13 @@ plotComponentResult <- function(df, string, componentPatterns, componentScores,
     do.call(order, dfOrd)
   }
 
-  if (rearrange && length(keepIdx) > 1L) {
+  if (rearrange && length(keepIdx) > 1) {
     rowMembership <- matrix(0L, nrow = nRows, ncol = length(keepIdx))
     colMembership <- matrix(0L, nrow = nCols, ncol = length(keepIdx))
     for (j in seq_along(keepIdx)) {
       k <- keepIdx[j]
-      if (any(idxRows == k)) rowMembership[which(idxRows == k), j] <- 1L
-      if (any(idxCols == k)) colMembership[which(idxCols == k), j] <- 1L
+      rowMembership[which(bitwAnd(as.integer(idxRows), componentMasks[k]) != 0L), j] <- 1L
+      colMembership[which(bitwAnd(as.integer(idxCols), componentMasks[k]) != 0L), j] <- 1L
     }
     rowOrder <- fastLexiOrder(rowMembership)
     colOrder <- fastLexiOrder(colMembership)
@@ -103,12 +134,13 @@ plotComponentResult <- function(df, string, componentPatterns, componentScores,
     patternCounts <- list()
     for (k in keepIdx) {
       pattern <- componentPatterns[k]
-      if (is.null(patternCounts[[pattern]])) patternCounts[[pattern]] <- 0L
-      patternCounts[[pattern]] <- patternCounts[[pattern]] + 1L
+      if (is.na(pattern) || !nzchar(pattern)) pattern <- "inactive"
+      if (is.null(patternCounts[[pattern]])) patternCounts[[pattern]] <- 0
+      patternCounts[[pattern]] <- patternCounts[[pattern]] + 1
       label <- paste0(pattern, "_", patternCounts[[pattern]])
 
-      rawRowIdx <- which(idxRows == k)
-      rawColIdx <- which(idxCols == k)
+      rawRowIdx <- which(bitwAnd(as.integer(idxRows), componentMasks[k]) != 0L)
+      rawColIdx <- which(bitwAnd(as.integer(idxCols), componentMasks[k]) != 0L)
 
       if (length(rawRowIdx) > 0 && length(rawColIdx) > 0) {
         rowIdx <- rowIndexMap[rawRowIdx]

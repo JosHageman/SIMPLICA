@@ -4,7 +4,7 @@
 \alias{print.summaryComponents}
 \title{Print method for summaryComponents}
 \usage{
-\method{print}{summaryComponents}(x, showDetails = FALSE, maxLinesDetails = 200L, ...)
+\method{print}{summaryComponents}(x, showDetails = FALSE, maxLinesDetails = 200, ...)
 }
 \arguments{
 \item{x}{An object produced by \code{summaryComponents()}.}

@@ -11,7 +11,7 @@
 #' 
 #' @export
 #' @method print summaryComponents
-print.summaryComponents <- function(x, showDetails = FALSE, maxLinesDetails = 200L, ...) {
+print.summaryComponents <- function(x, showDetails = FALSE, maxLinesDetails = 200, ...) {
   ms <- attr(x, "matrix_size")
   if (!is.null(ms)) {
     cat("=== Component Summary ===\n")
@@ -26,9 +26,21 @@ print.summaryComponents <- function(x, showDetails = FALSE, maxLinesDetails = 20
   attr(tab, "matrix_size") <- NULL
   attr(tab, "indices") <- NULL
   class(tab) <- "data.frame"
+  cvRun <- attr(x, "cv_run")
+  hasCV <- if (is.null(cvRun)) {
+    "cvPattern" %in% names(tab) && any(!is.na(tab$cvPattern))
+  } else {
+    isTRUE(cvRun)
+  }
+  if (hasCV) {
+    displayColumns <- c("componentId", "gaPattern", "cvPattern", "cvChanged", "score", "rows", "cols", "size")
+  } else {
+    displayColumns <- c("componentId", "pattern", "score", "rows", "cols", "size")
+  }
+  tab <- tab[intersect(displayColumns, names(tab))]
   print(tab, row.names = FALSE)
   
-  if (showDetails && nrow(x) > 0L) {
+  if (showDetails && nrow(x) > 0) {
     inds <- attr(x, "indices")
     cat("\n=== Component Details (row/col indices) ===\n")
     for (k in seq_len(nrow(x))) {
@@ -38,7 +50,12 @@ print.summaryComponents <- function(x, showDetails = FALSE, maxLinesDetails = 20
       rowIdx <- inds[[k]]$rowIdx
       colIdx <- inds[[k]]$colIdx
 
-      cat(sprintf("Component %d (%s, score = %.2f):\n", compId, pat, scr))
+      if (hasCV) {
+        cat(sprintf("Component %d (GA: %s; CV: %s; score = %.2f):\n",
+                    compId, x$gaPattern[k], x$cvPattern[k], scr))
+      } else {
+        cat(sprintf("Component %d (%s, score = %.2f):\n", compId, pat, scr))
+      }
 
       # truncation for long vectors
       if (length(rowIdx) > maxLinesDetails) {

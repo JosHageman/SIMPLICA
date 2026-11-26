@@ -4,3 +4,5 @@
 data-raw/
 ^SIMPLICA-manual\.pdf$
 ^README\.md$
+^\.github$
+^data-raw$

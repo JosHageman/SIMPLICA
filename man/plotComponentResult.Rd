@@ -2,7 +2,7 @@
 % Please edit documentation in R/plotComponentResult.R
 \name{plotComponentResult}
 \alias{plotComponentResult}
-\title{Plot non-contiguous simplivariate components by pattern type, with optional reordering}
+\title{Plot fitted components}
 \usage{
 plotComponentResult(
   df,
@@ -18,15 +18,21 @@ plotComponentResult(
 )
 }
 \arguments{
-\item{df}{Original data matrix}
+\item{df}{Original data matrix. Missing values are permitted and are rendered
+using the missing-value colour of the selected ggplot2 fill scale.}
 
-\item{string}{Best GA string (vector of length nrow(df) + ncol(df); rows first, then cols)}
+\item{string}{Membership string from the fit (vector of length nrow(df) +
+ncol(df); rows first, then columns). Values are bit masks, allowing rows
+and columns to belong to multiple components.}
 
-\item{componentPatterns}{Vector of component types (from fitness(..., returnPatterns = TRUE))}
+\item{componentPatterns}{Vector of component pattern names, typically
+obtained from a fitted SIMPLICA object.}
 
 \item{componentScores}{Vector of fitness scores per component}
 
-\item{scoreCutoff}{Minimum score a component must have to be shown (default: 0 = show all)}
+\item{scoreCutoff}{Minimum score a component must have to be shown. At the
+default of 0, only strictly positive components are shown; use a lower
+value to show inactive or negative component slots.}
 
 \item{showAxisLabels}{Logical: show axis tick labels (default: TRUE)}
 
@@ -42,6 +48,20 @@ plotComponentResult(
 ggplot object
 }
 \description{
-Visualizes GA-detected simplivariate components on the original matrix as outlined cells,
-colored by pattern type.
+Draws the original matrix as a heatmap and outlines fitted components by pattern.
+}
+\examples{
+data("simplicaVignette")
+
+fit <- simplicaVignette$fit
+
+plotComponentResult(
+  df = simplicaVignette$data,
+  string = fit$string,
+  componentPatterns = fit$componentPatterns,
+  componentScores = fit$componentScores,
+  showAxisLabels = FALSE,
+  rearrange = TRUE
+)
+
 }
