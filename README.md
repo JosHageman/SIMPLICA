@@ -1,5 +1,10 @@
 # SIMPLICA
 
+![R-CMD-check](https://github.com/joshageman/SIMPLICA/actions/workflows/R-CMD-check.yaml/badge.svg)
+![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)
+![CRAN status](https://www.r-pkg.org/badges/version/SIMPLICA)
+![Downloads](https://cranlogs.r-pkg.org/badges/grand-total/SIMPLICA)
+
 Simplivariate Component Analysis (SIMPLICA) identifies subsets of rows and columns in numeric data matrices that follow a common mathematical pattern.
 
 Components are extracted sequentially using a genetic algorithm. After extracting a component, its fitted contribution relative to the background is subtracted before searching for the next component.
